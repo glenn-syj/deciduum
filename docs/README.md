@@ -18,8 +18,7 @@ docs/
 │   └── errors.md              # Error handling
 └── implementation/
     ├── stack.md               # Tech stack decisions
-    ├── schema.md              # SQLite schema
-    └── checklist.md           # Implementation rules
+    └── schema.md              # SQLite schema
 ```
 
 ---
@@ -78,20 +77,9 @@ Header: X-API-Key
 3. Read `api/endpoints.md` for API contracts
 4. Read `api/errors.md` for error handling
 5. Read `implementation/schema.md` for database
-6. Read `implementation/checklist.md` for rules
 
 ### For Architecture Decisions
 1. Read `implementation/stack.md`
-
----
-
-## Related Documentation
-
-- [backbone.md](./backbone.md) - Original product specification
-- [api-spec.md](./api-spec.md) - Original API specification
-- [database-schema.md](./database-schema.md) - Original database schema
-- [error-handling.md](./error-handling.md) - Original error handling
-- [implementation-rules.md](./implementation-rules.md) - Original implementation rules
 
 ---
 
