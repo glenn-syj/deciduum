@@ -5,7 +5,7 @@ import secrets
 
 from app.core.config import get_settings
 from app.core.database import init_db
-from app.routers import decisions, memos, directions, today
+from app.routers import decisions, memos, directions, today, tasks
 
 
 settings = get_settings()
@@ -82,6 +82,7 @@ app.include_router(
     directions.router, prefix="/v1", dependencies=[Depends(verify_api_key)]
 )
 app.include_router(today.router, prefix="/v1", dependencies=[Depends(verify_api_key)])
+app.include_router(tasks.router, prefix="/v1", dependencies=[Depends(verify_api_key)])
 
 
 @app.get("/")

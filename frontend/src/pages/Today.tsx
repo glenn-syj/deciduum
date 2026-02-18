@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { todayApi } from '../utils/api';
+import { todayApi, Decision, Memo } from '../utils/api';
 
 export default function Today() {
   const { data, isLoading, error } = useQuery({
@@ -33,7 +33,7 @@ export default function Today() {
     );
   }
 
-  const today = data?.data;
+  const today = data;
 
   return (
     <div className="page">
@@ -44,11 +44,11 @@ export default function Today() {
       <div className="today-grid">
         <section className="card">
           <h2 className="card-title">Ongoing Decisions</h2>
-          {today?.ongoing_decisions.length === 0 ? (
+          {today?.ongoing_decisions?.length === 0 ? (
             <p className="empty-text">No ongoing decisions</p>
           ) : (
             <ul className="today-list">
-              {today?.ongoing_decisions.map((decision) => (
+              {today?.ongoing_decisions?.map((decision: Decision) => (
                 <li key={decision.id} className="today-list-item">
                   <Link to={`/decisions`} className="today-list-link">
                     <span className="today-list-title">{decision.title}</span>
@@ -67,11 +67,11 @@ export default function Today() {
 
         <section className="card">
           <h2 className="card-title">Today's Decisions</h2>
-          {today?.todays_decisions.length === 0 ? (
+          {today?.todays_decisions?.length === 0 ? (
             <p className="empty-text">No decisions made today</p>
           ) : (
             <ul className="today-list">
-              {today?.todays_decisions.map((decision) => (
+              {today?.todays_decisions?.map((decision: Decision) => (
                 <li key={decision.id} className="today-list-item">
                   <Link to={`/decisions`} className="today-list-link">
                     <span className="today-list-title">{decision.title}</span>
@@ -89,11 +89,11 @@ export default function Today() {
 
         <section className="card">
           <h2 className="card-title">Today's Memos</h2>
-          {today?.todays_memos.length === 0 ? (
+          {today?.todays_memos?.length === 0 ? (
             <p className="empty-text">No memos today</p>
           ) : (
             <ul className="today-list">
-              {today?.todays_memos.map((memo) => (
+              {today?.todays_memos?.map((memo: Memo) => (
                 <li key={memo.id} className="today-list-item">
                   <Link to={`/memos`} className="today-list-link">
                     <span className="today-list-content">{memo.content}</span>

@@ -59,6 +59,19 @@ export interface Direction {
   updated_at: string;
 }
 
+export type TaskStatus = 'pending' | 'in_progress' | 'completed';
+
+export interface Task {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  due_date: string | null;
+  notes: string | null;
+  decision_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PaginatedResponse<T> {
   data: T[];
   meta: {
@@ -106,4 +119,18 @@ export const directionsApi = {
 
 export const todayApi = {
   get: (date?: string) => api.get<TodayResponse>('/today', { params: { date } }),
+};
+
+export const tasksApi = {
+  list: (params?: { decision_id?: string; status?: string; page?: number; limit?: number }) =>
+    api.get<PaginatedResponse<Task>>('/tasks', { params }),
+  get: (id: string) => api.get<{ data: Task }>(`/tasks/${id}`),
+  create: (data: { title: string; status?: string; due_date?: string | null; notes?: string | null; decision_id: string }) =>
+    api.post<{ data: Task }>('/tasks', data),
+  update: (id: string, data: Partial<Task>) => api.patch<{ data: Task }>(`/tasks/${id}`, data),
+  delete: (id: string) => api.delete(`/tasks/${id}`),
+  listByDecision: (decisionId: string, params?: { status?: string; page?: number; limit?: number }) =>
+    api.get<PaginatedResponse<Task>>(`/decisions/${decisionId}/tasks`, { params }),
+  createForDecision: (decisionId: string, data: { title: string; status?: string; due_date?: string | null; notes?: string | null }) =>
+    api.post<{ data: Task }>(`/decisions/${decisionId}/tasks`, data),
 };

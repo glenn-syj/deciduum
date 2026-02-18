@@ -54,4 +54,9 @@ async def client(db_session):
 @pytest_asyncio.fixture
 async def auth_headers():
     """Authentication headers for API requests."""
-    return {"X-API-Key": "test-api-key"}
+    # Use the actual API key from settings or a test key
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    api_key = settings.deciduum_api_key or "test-api-key"
+    return {"X-API-Key": api_key}

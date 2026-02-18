@@ -57,6 +57,7 @@ class Decision(Base):
         "DecisionLog", back_populates="decision", cascade="all, delete-orphan"
     )
     memos: Mapped[list["Memo"]] = relationship("Memo", back_populates="linked_decision")
+    tasks: Mapped[list["Task"]] = relationship("Task", back_populates="decision")
 
 
 class DecisionLog(Base):
@@ -99,3 +100,27 @@ class Memo(Base):
     direction: Mapped[Optional["Direction"]] = relationship(
         "Direction", back_populates="memos"
     )
+
+
+class Task(Base):
+    __tablename__ = "tasks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(20), default="pending"
+    )  # pending/in_progress/completed
+    due_date: Mapped[Optional[str]] = mapped_column(
+        String(10), nullable=True
+    )  # YYYY-MM-DD
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    decision_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("decisions.id", ondelete="CASCADE"), nullable=False
+    )
+    created_at: Mapped[str] = mapped_column(String(36), default=utcnow_string)
+    updated_at: Mapped[str] = mapped_column(
+        String(36), default=utcnow_string, onupdate=utcnow_string
+    )
+    deleted_at: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+
+    decision: Mapped["Decision"] = relationship("Decision", back_populates="tasks")
