@@ -10,8 +10,8 @@
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 160 84% 40%;
+    --primary-foreground: 160 84% 10%;
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
     --muted: 210 40% 96.1%;
@@ -22,7 +22,7 @@
     --destructive-foreground: 210 40% 98%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+    --ring: 160 84% 40%;
     --radius: 0.5rem;
   }
 
@@ -33,8 +33,8 @@
     --card-foreground: 210 40% 98%;
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 160 84% 50%;
+    --primary-foreground: 160 84% 10%;
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
     --muted: 217.2 32.6% 17.5%;
@@ -45,7 +45,7 @@
     --destructive-foreground: 210 40% 98%;
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+    --ring: 160 84% 50%;
   }
 }
 
@@ -58,63 +58,122 @@
   }
 }
 
-/* FullCalendar customizations */
+/* FullCalendar Modern Minimal Styling */
+.fc {
+  --fc-border-color: hsl(var(--border));
+  --fc-button-text-color: hsl(var(--foreground));
+  --fc-button-bg-color: hsl(var(--primary));
+  --fc-button-border-color: hsl(var(--primary));
+  --fc-button-hover-bg-color: hsl(var(--primary) / 0.9);
+  --fc-button-hover-border-color: hsl(var(--primary) / 0.9);
+  --fc-button-active-bg-color: hsl(var(--primary) / 0.8);
+  --fc-button-active-border-color: hsl(var(--primary) / 0.8);
+  --fc-today-bg-color: hsl(var(--primary) / 0.05);
+  --fc-event-bg-color: hsl(var(--primary));
+  --fc-event-border-color: hsl(var(--primary));
+  --fc-page-bg-color: transparent;
+}
+
 .fc {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.fc .fc-toolbar {
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .fc .fc-toolbar-title {
   font-size: 1.25rem;
   font-weight: 600;
+  color: hsl(var(--foreground));
 }
 
 .fc .fc-button {
-  background-color: hsl(var(--primary));
-  border-color: hsl(var(--primary));
+  border-radius: var(--radius);
+  font-weight: 500;
   padding: 0.5rem 1rem;
-  font-weight: 500;
   text-transform: capitalize;
+  font-size: 0.875rem;
 }
 
-.fc .fc-button:hover {
-  background-color: hsl(var(--primary) / 0.9);
-  border-color: hsl(var(--primary) / 0.9);
+.fc .fc-button:focus {
+  box-shadow: none;
 }
 
-.fc .fc-button-primary:not(:disabled).fc-button-active,
-.fc .fc-button-primary:not(:disabled):active {
-  background-color: hsl(var(--primary) / 0.9);
-  border-color: hsl(var(--primary) / 0.9);
+.fc .fc-col-header-cell {
+  padding: 0.75rem 0;
+  background-color: hsl(var(--muted));
 }
 
-.fc .fc-daygrid-day-number,
 .fc .fc-col-header-cell-cushion {
-  color: hsl(var(--foreground));
-  text-decoration: none;
-  font-weight: 500;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: hsl(var(--muted-foreground));
 }
 
-.fc .fc-day-today {
-  background-color: hsl(var(--primary) / 0.1) !important;
+.fc .fc-daygrid-day {
+  padding: 0.25rem;
+}
+
+.fc .fc-daygrid-day-number {
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+}
+
+.fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+  background-color: hsl(var(--primary));
+  color: white;
+  border-radius: 50%;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .fc .fc-event {
   border-radius: 4px;
-  padding: 2px 4px;
+  border: none;
+  padding: 2px 6px;
   font-size: 0.75rem;
-  cursor: pointer;
+  font-weight: 500;
+  opacity: 0.9;
+  transition: opacity 0.2s, transform 0.2s;
 }
 
 .fc .fc-event:hover {
-  opacity: 0.9;
+  opacity: 1;
+  transform: scale(1.02);
 }
 
 .fc .fc-daygrid-event-dot {
-  border-color: currentColor;
+  display: none;
+}
+
+.fc .fc-h-event .fc-event-main {
+  padding: 0 4px;
+}
+
+.fc .fc-timegrid-slot {
+  height: 2.5rem;
+}
+
+.fc .fc-timegrid-slot-label-cushion {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.fc .fc-timegrid-axis-cushion {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
 }
 
 .fc .fc-scrollgrid {
-  border-color: hsl(var(--border));
+  border: none;
 }
 
 .fc .fc-scrollgrid td,
@@ -122,6 +181,25 @@
   border-color: hsl(var(--border));
 }
 
-.fc .fc-col-header-cell {
+.fc .fc-scrollgrid td:first-child,
+.fc .fc-scrollgrid th:first-child {
+  border-left: none;
+}
+
+.fc .fc-scrollgrid td:last-child,
+.fc .fc-scrollgrid th:last-child {
+  border-right: none;
+}
+
+.fc .fc-popover {
+  border-radius: var(--radius);
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 4px 12px hsl(var(--foreground) / 0.1);
+}
+
+.fc .fc-popover-header {
   background-color: hsl(var(--muted));
+  border-bottom: 1px solid hsl(var(--border));
+  padding: 0.5rem 0.75rem;
+  font-weight: 600;
 }
