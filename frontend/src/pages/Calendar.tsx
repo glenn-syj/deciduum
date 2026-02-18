@@ -161,8 +161,11 @@ export default function Calendar() {
   if (!isClient || !calendarModules) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-semibold">Calendar</h1>
-        <div className="bg-card border rounded-lg p-4">
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight">Calendar</h1>
+          <p className="text-sm text-muted-foreground">Loading calendar...</p>
+        </div>
+        <div className="bg-card border border-border/50 rounded-lg p-4 shadow-sm">
           <Skeleton className="h-[400px] w-full" />
         </div>
       </div>
@@ -174,10 +177,13 @@ export default function Calendar() {
   return (
     <>
       <div className="space-y-6">
-        <h1 className="text-2xl font-semibold">Calendar</h1>
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight">Calendar</h1>
+          <p className="text-sm text-muted-foreground">View all your decisions, memos, and tasks</p>
+        </div>
         
         {isLoading && (
-          <div className="bg-card border rounded-lg p-4">
+          <div className="bg-card border border-border/50 rounded-lg p-4 shadow-sm">
             <Skeleton className="h-[400px] w-full" />
           </div>
         )}
@@ -193,41 +199,41 @@ export default function Calendar() {
         )}
         
         <FullCalendar
-            plugins={[
-              dayGridPlugin,
-              timeGridPlugin,
-              interactionPlugin,
-            ]}
-            initialView="dayGridMonth"
-            headerToolbar={{
-              left: 'prev,next today',
-              center: 'title',
-              right: 'dayGridMonth,timeGridWeek,timeGridDay',
-            }}
-            events={events}
-            eventClick={handleEventClick}
-            height="auto"
-            aspectRatio={1.8}
-            dayMaxEvents={3}
-            eventDisplay="block"
-            nowIndicator={true}
-            selectable={true}
-            editable={false}
-          />
-      </div>
+          plugins={[
+            dayGridPlugin,
+            timeGridPlugin,
+            interactionPlugin,
+          ]}
+          initialView="dayGridMonth"
+          headerToolbar={{
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay',
+          }}
+          events={events}
+          eventClick={handleEventClick}
+          height="auto"
+          aspectRatio={1.8}
+          dayMaxEvents={3}
+          eventDisplay="block"
+          nowIndicator={true}
+          selectable={true}
+          editable={false}
+        />
 
-      <div className="flex gap-4 text-sm">
-        <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'hsl(160 84% 39%)' }}></span>
-          <span className="text-muted-foreground">Decisions</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'hsl(142.1 76.2% 36.3%)' }}></span>
-          <span className="text-muted-foreground">Memos</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'hsl(24.6 95% 53.1%)' }}></span>
-          <span className="text-muted-foreground">Tasks</span>
+        <div className="flex gap-4 text-sm">
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'hsl(160 84% 39%)' }}></span>
+            <span className="text-muted-foreground">Decisions</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'hsl(142.1 76.2% 36.3%)' }}></span>
+            <span className="text-muted-foreground">Memos</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'hsl(24.6 95% 53.1%)' }}></span>
+            <span className="text-muted-foreground">Tasks</span>
+          </div>
         </div>
       </div>
     </>
