@@ -95,14 +95,14 @@ export default function Calendar() {
     if (!isClient) return [];
     const calendarEvents: CalendarEvent[] = [];
 
-    decisionsData?.forEach((decision: Decision) => {
+      decisionsData?.forEach((decision: Decision) => {
       if (decision.date) {
         calendarEvents.push({
           id: `decision-${decision.id}`,
           title: truncateText(decision.title, 50),
           start: decision.date,
-          backgroundColor: '#3b82f6',
-          borderColor: '#2563eb',
+          backgroundColor: 'hsl(160 84% 39%)',
+          borderColor: 'hsl(160 84% 39%)',
           extendedProps: { type: 'decision', data: decision },
         });
       }
@@ -114,8 +114,8 @@ export default function Calendar() {
           id: `memo-${memo.id}`,
           title: truncateText(memo.content, 50),
           start: memo.date,
-          backgroundColor: '#22c55e',
-          borderColor: '#16a34a',
+          backgroundColor: 'hsl(142.1 76.2% 36.3%)',
+          borderColor: 'hsl(142.1 76.2% 36.3%)',
           extendedProps: { type: 'memo', data: memo },
         });
       }
@@ -127,8 +127,8 @@ export default function Calendar() {
           id: `task-${task.id}`,
           title: truncateText(task.title, 50),
           start: task.due_date,
-          backgroundColor: '#f97316',
-          borderColor: '#ea580c',
+          backgroundColor: 'hsl(24.6 95% 53.1%)',
+          borderColor: 'hsl(24.6 95% 53.1%)',
           extendedProps: { type: 'task', data: task },
         });
       }
@@ -172,64 +172,64 @@ export default function Calendar() {
   const { FullCalendar, dayGridPlugin, timeGridPlugin, interactionPlugin } = calendarModules;
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Calendar</h1>
-      
-      {isLoading && (
-        <div className="bg-card border rounded-lg p-4">
-          <Skeleton className="h-[400px] w-full" />
-        </div>
-      )}
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-2">
-          <AlertCircle className="h-5 w-5 text-red-500" />
-          <div>
-            <p className="text-red-600 font-bold">Failed to load calendar events</p>
-            <p className="text-red-600 text-sm">{getErrorMessage(error)}</p>
+    <>
+      <div className="space-y-6">
+        <h1 className="text-2xl font-semibold">Calendar</h1>
+        
+        {isLoading && (
+          <div className="bg-card border rounded-lg p-4">
+            <Skeleton className="h-[400px] w-full" />
           </div>
-        </div>
-      )}
-      
-      <div className="bg-card border rounded-lg p-4 shadow-sm">
+        )}
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-2">
+            <AlertCircle className="h-5 w-5 text-red-500" />
+            <div>
+              <p className="text-red-600 font-bold">Failed to load calendar events</p>
+              <p className="text-red-600 text-sm">{getErrorMessage(error)}</p>
+            </div>
+          </div>
+        )}
+        
         <FullCalendar
-          plugins={[
-            dayGridPlugin,
-            timeGridPlugin,
-            interactionPlugin,
-          ]}
-          initialView="dayGridMonth"
-          headerToolbar={{
-            left: 'prev,next today',
-            center: 'title',
-            right: 'dayGridMonth,timeGridWeek,timeGridDay',
-          }}
-          events={events}
-          eventClick={handleEventClick}
-          height="auto"
-          aspectRatio={1.8}
-          dayMaxEvents={3}
-          eventDisplay="block"
-          nowIndicator={true}
-          selectable={true}
-          editable={false}
-        />
+            plugins={[
+              dayGridPlugin,
+              timeGridPlugin,
+              interactionPlugin,
+            ]}
+            initialView="dayGridMonth"
+            headerToolbar={{
+              left: 'prev,next today',
+              center: 'title',
+              right: 'dayGridMonth,timeGridWeek,timeGridDay',
+            }}
+            events={events}
+            eventClick={handleEventClick}
+            height="auto"
+            aspectRatio={1.8}
+            dayMaxEvents={3}
+            eventDisplay="block"
+            nowIndicator={true}
+            selectable={true}
+            editable={false}
+          />
       </div>
 
-      <div className="flex gap-6 p-4 bg-card border rounded-lg">
-        <div className="flex items-center gap-2">
-          <span className="w-4 h-4 rounded" style={{ backgroundColor: '#3b82f6' }}></span>
-          <span>Decisions</span>
+      <div className="flex gap-4 text-sm">
+        <div className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'hsl(160 84% 39%)' }}></span>
+          <span className="text-muted-foreground">Decisions</span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="w-4 h-4 rounded" style={{ backgroundColor: '#22c55e' }}></span>
-          <span>Memos</span>
+        <div className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'hsl(142.1 76.2% 36.3%)' }}></span>
+          <span className="text-muted-foreground">Memos</span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="w-4 h-4 rounded" style={{ backgroundColor: '#f97316' }}></span>
-          <span>Tasks</span>
+        <div className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'hsl(24.6 95% 53.1%)' }}></span>
+          <span className="text-muted-foreground">Tasks</span>
         </div>
       </div>
-    </div>
+    </>
   );
 }
