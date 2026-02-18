@@ -1,6 +1,13 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { memosApi, Memo, decisionsApi, directionsApi } from '../utils/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
 
 export default function Memos() {
   const queryClient = useQueryClient();
@@ -113,11 +120,9 @@ export default function Memos() {
 
   if (isLoading) {
     return (
-      <div className="page">
-        <div className="page-header">
-          <h1>Memos</h1>
-        </div>
-        <div className="loading">Loading...</div>
+      <div className="space-y-6">
+        <h1 className="text-2xl font-semibold">Memos</h1>
+        <p className="text-muted-foreground">Loading...</p>
       </div>
     );
   }
@@ -127,126 +132,130 @@ export default function Memos() {
   const directions = directionsData?.data || [];
 
   return (
-    <div className="page">
-      <div className="page-header">
-        <h1>Memos</h1>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Memos</h1>
         {!isCreating && (
-          <button className="btn btn-primary" onClick={() => setIsCreating(true)}>
-            + New Memo
-          </button>
+          <Button onClick={() => setIsCreating(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Memo
+          </Button>
         )}
       </div>
 
       {isCreating && (
-        <div className="card form-card">
-          <h2 className="card-title">
-            {editingId ? 'Edit Memo' : 'New Memo'}
-          </h2>
-          <form onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label className="form-label">Content</label>
-              <textarea
-                className="form-textarea"
-                rows={4}
-                value={formData.content}
-                onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                required
-              />
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Date</label>
-                <input
-                  type="date"
-                  className="form-input"
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+        <Card>
+          <CardHeader>
+            <CardTitle>{editingId ? 'Edit Memo' : 'New Memo'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="content">Content</Label>
+                <Textarea
+                  id="content"
+                  rows={4}
+                  value={formData.content}
+                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                   required
                 />
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Linked Decision</label>
-                <select
-                  className="form-input"
-                  value={formData.linked_decision_id}
-                  onChange={(e) =>
-                    setFormData({ ...formData, linked_decision_id: e.target.value })
-                  }
-                >
-                  <option value="">None</option>
-                  {decisions.map((dec) => (
-                    <option key={dec.id} value={dec.id}>
-                      {dec.title}
-                    </option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="date">Date</Label>
+                  <Input
+                    id="date"
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="decision">Linked Decision</Label>
+                  <Select
+                    value={formData.linked_decision_id}
+                    onValueChange={(value) => setFormData({ ...formData, linked_decision_id: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select decision" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">None</SelectItem>
+                      {decisions.map((dec) => (
+                        <SelectItem key={dec.id} value={dec.id}>
+                          {dec.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="direction">Linked Direction</Label>
+                  <Select
+                    value={formData.linked_direction_id}
+                    onValueChange={(value) => setFormData({ ...formData, linked_direction_id: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select direction" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">None</SelectItem>
+                      {directions.map((dir) => (
+                        <SelectItem key={dir.id} value={dir.id}>
+                          {dir.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Linked Direction</label>
-                <select
-                  className="form-input"
-                  value={formData.linked_direction_id}
-                  onChange={(e) =>
-                    setFormData({ ...formData, linked_direction_id: e.target.value })
-                  }
-                >
-                  <option value="">None</option>
-                  {directions.map((dir) => (
-                    <option key={dir.id} value={dir.id}>
-                      {dir.title}
-                    </option>
-                  ))}
-                </select>
+              <div className="flex gap-2">
+                <Button type="submit">
+                  {editingId ? 'Update' : 'Create'}
+                </Button>
+                <Button type="button" variant="outline" onClick={cancelForm}>
+                  Cancel
+                </Button>
               </div>
-            </div>
-
-            <div className="form-actions">
-              <button type="submit" className="btn btn-primary">
-                {editingId ? 'Update' : 'Create'}
-              </button>
-              <button type="button" className="btn btn-secondary" onClick={cancelForm}>
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
+            </form>
+          </CardContent>
+        </Card>
       )}
 
       {memos.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-icon">📝</div>
-          <p>No memos yet. Create your first memo!</p>
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">No memos yet. Create your first memo!</p>
         </div>
       ) : (
-        <div className="list">
+        <div className="space-y-4">
           {memos.map((memo) => (
-            <div key={memo.id} className="list-item">
-              <div className="list-item-content">
-                <div className="list-item-title memo-content">{memo.content}</div>
-                <div className="list-item-meta">
-                  <span>{memo.date}</span>
-                  {memo.linked_decision_id && <span>Linked to decision</span>}
-                  {memo.linked_direction_id && <span>Linked to direction</span>}
+            <Card key={memo.id}>
+              <CardContent className="pt-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="whitespace-pre-wrap">{memo.content}</p>
+                    <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
+                      <span>{memo.date}</span>
+                      {memo.linked_decision_id && <span className="text-blue-600">Linked to decision</span>}
+                      {memo.linked_direction_id && <span className="text-green-600">Linked to direction</span>}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => handleEdit(memo)}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button variant="destructive" size="sm" onClick={() => handleDelete(memo.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              <div className="list-item-actions">
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => handleEdit(memo)}
-                >
-                  Edit
-                </button>
-                <button
-                  className="btn btn-danger btn-sm"
-                  onClick={() => handleDelete(memo.id)}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}

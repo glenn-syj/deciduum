@@ -1,6 +1,31 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { decisionsApi, Decision, directionsApi, tasksApi, Task, TaskStatus } from '../utils/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, Check } from 'lucide-react';
+
+function getStatusVariant(status: string) {
+  switch (status) {
+    case 'completed':
+      return 'default';
+    case 'ongoing':
+      return 'outline';
+    case 'archived':
+      return 'secondary';
+    case 'in_progress':
+      return 'outline';
+    case 'pending':
+      return 'secondary';
+    default:
+      return 'outline';
+  }
+}
 
 export default function Decisions() {
   const queryClient = useQueryClient();
@@ -17,7 +42,6 @@ export default function Decisions() {
     direction_id: '',
   });
 
-  // Task form state
   const [taskFormData, setTaskFormData] = useState({
     title: '',
     status: 'pending' as TaskStatus,
@@ -25,7 +49,6 @@ export default function Decisions() {
     notes: '',
   });
 
-  // Fetch tasks for a specific decision
   const useTasksForDecision = (decisionId: string) => {
     return useQuery({
       queryKey: ['tasks', decisionId],
@@ -51,7 +74,6 @@ export default function Decisions() {
     mutationFn: ({ id, data }: { id: string; data: Partial<Task> }) =>
       tasksApi.update(id, data),
     onSuccess: () => {
-      // Extract decisionId from the task id format or refetch all
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       setEditingTaskId(null);
       resetTaskForm();
@@ -167,7 +189,6 @@ export default function Decisions() {
     resetForm();
   };
 
-  // Task handlers
   const handleCreateTask = (decisionId: string) => {
     createTaskMutation.mutate({
       decisionId,
@@ -220,11 +241,9 @@ export default function Decisions() {
 
   if (isLoading) {
     return (
-      <div className="page">
-        <div className="page-header">
-          <h1>Decisions</h1>
-        </div>
-        <div className="loading">Loading...</div>
+      <div className="space-y-6">
+        <h1 className="text-2xl font-semibold">Decisions</h1>
+        <p className="text-muted-foreground">Loading...</p>
       </div>
     );
   }
@@ -233,113 +252,115 @@ export default function Decisions() {
   const directions = directionsData?.data || [];
 
   return (
-    <div className="page">
-      <div className="page-header">
-        <h1>Decisions</h1>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Decisions</h1>
         {!isCreating && (
-          <button className="btn btn-primary" onClick={() => setIsCreating(true)}>
-            + New Decision
-          </button>
+          <Button onClick={() => setIsCreating(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Decision
+          </Button>
         )}
       </div>
 
       {isCreating && (
-        <div className="card form-card">
-          <h2 className="card-title">
-            {editingId ? 'Edit Decision' : 'New Decision'}
-          </h2>
-          <form onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label className="form-label">Title</label>
-              <input
-                type="text"
-                className="form-input"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                required
-              />
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Date</label>
-                <input
-                  type="date"
-                  className="form-input"
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+        <Card>
+          <CardHeader>
+            <CardTitle>{editingId ? 'Edit Decision' : 'New Decision'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="title">Title</Label>
+                <Input
+                  id="title"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   required
                 />
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Status</label>
-                <select
-                  className="form-input"
-                  value={formData.status}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      status: e.target.value as 'completed' | 'ongoing' | 'archived',
-                    })
-                  }
-                >
-                  <option value="ongoing">Ongoing</option>
-                  <option value="completed">Completed</option>
-                  <option value="archived">Archived</option>
-                </select>
-              </div>
-            </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="date">Date</Label>
+                  <Input
+                    id="date"
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    required
+                  />
+                </div>
 
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Review At</label>
-                <input
-                  type="date"
-                  className="form-input"
-                  value={formData.review_at}
-                  onChange={(e) => setFormData({ ...formData, review_at: e.target.value })}
-                />
+                <div className="space-y-2">
+                  <Label htmlFor="status">Status</Label>
+                  <Select
+                    value={formData.status}
+                    onValueChange={(value) => setFormData({ ...formData, status: value as 'completed' | 'ongoing' | 'archived' })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ongoing">Ongoing</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="archived">Archived</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Direction</label>
-                <select
-                  className="form-input"
-                  value={formData.direction_id}
-                  onChange={(e) =>
-                    setFormData({ ...formData, direction_id: e.target.value })
-                  }
-                >
-                  <option value="">None</option>
-                  {directions.map((dir) => (
-                    <option key={dir.id} value={dir.id}>
-                      {dir.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="review_at">Review At</Label>
+                  <Input
+                    id="review_at"
+                    type="date"
+                    value={formData.review_at}
+                    onChange={(e) => setFormData({ ...formData, review_at: e.target.value })}
+                  />
+                </div>
 
-            <div className="form-actions">
-              <button type="submit" className="btn btn-primary">
-                {editingId ? 'Update' : 'Create'}
-              </button>
-              <button type="button" className="btn btn-secondary" onClick={cancelForm}>
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
+                <div className="space-y-2">
+                  <Label htmlFor="direction">Direction</Label>
+                  <Select
+                    value={formData.direction_id}
+                    onValueChange={(value) => setFormData({ ...formData, direction_id: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select direction" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">None</SelectItem>
+                      {directions.map((dir) => (
+                        <SelectItem key={dir.id} value={dir.id}>
+                          {dir.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button type="submit">
+                  {editingId ? 'Update' : 'Create'}
+                </Button>
+                <Button type="button" variant="outline" onClick={cancelForm}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
       )}
 
       {decisions.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-icon">⚖️</div>
-          <p>No decisions yet. Create your first decision!</p>
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">No decisions yet. Create your first decision!</p>
         </div>
       ) : (
-        <div className="list">
+        <div className="space-y-4">
           {decisions.map((decision) => (
             <DecisionCard
               key={decision.id}
@@ -368,7 +389,6 @@ export default function Decisions() {
   );
 }
 
-// Decision Card Component with Tasks
 interface DecisionCardProps {
   decision: Decision;
   isExpanded: boolean;
@@ -413,118 +433,123 @@ function DecisionCard({
   const taskCount = tasks.length;
 
   return (
-    <div className="list-item">
-      <div className="list-item-content">
-        <div className="list-item-title">{decision.title}</div>
-        <div className="list-item-meta">
-          <span className={`status-badge status-${decision.status}`}>
-            {decision.status}
-          </span>
-          <span>Created: {decision.date}</span>
-          {decision.review_at && <span>Review: {decision.review_at}</span>}
-          <button
-            className="tasks-toggle-btn"
-            onClick={onToggleExpand}
-          >
-            {isExpanded ? '▼' : '▶'} Tasks {taskCount > 0 && `(${taskCount})`}
-          </button>
-        </div>
-      </div>
-      <div className="list-item-actions">
-        <button
-          className="btn btn-secondary btn-sm"
-          onClick={() => handleEdit(decision)}
-        >
-          Edit
-        </button>
-        <button
-          className="btn btn-danger btn-sm"
-          onClick={() => handleDelete(decision.id)}
-        >
-          Delete
-        </button>
-      </div>
-
-      {/* Tasks Section */}
-      {isExpanded && (
-        <div className="tasks-section">
-          {tasksLoading ? (
-            <div className="loading">Loading tasks...</div>
-          ) : tasks.length === 0 ? (
-            <div className="empty-text">No tasks yet</div>
-          ) : (
-            <div className="tasks-list">
-              {tasks.map((task: Task) => (
-                <TaskItem
-                  key={task.id}
-                  task={task}
-                  isEditing={editingTaskId === task.id}
-                  onEdit={() => onEditTask(task)}
-                  onDelete={() => onDeleteTask(task.id)}
-                  onUpdate={() => onUpdateTask(task)}
-                  onCancel={onCancelTaskForm}
-                  formData={taskFormData}
-                  setFormData={setTaskFormData}
-                />
-              ))}
+    <Card>
+      <CardContent className="pt-6">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2">
+              <h3 className="font-semibold text-lg">{decision.title}</h3>
+              <Badge variant={getStatusVariant(decision.status) as any}>
+                {decision.status}
+              </Badge>
             </div>
-          )}
-
-          {/* Add Task Form */}
-          {creatingTaskForDecision === decision.id ? (
-            <div className="task-form">
-              <div className="task-form-row">
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Task title"
-                  value={taskFormData.title}
-                  onChange={(e) => setTaskFormData({ ...taskFormData, title: e.target.value })}
-                  autoFocus
-                />
-                <select
-                  className="form-input"
-                  value={taskFormData.status}
-                  onChange={(e) => setTaskFormData({ ...taskFormData, status: e.target.value as TaskStatus })}
-                >
-                  <option value="pending">Pending</option>
-                  <option value="in_progress">In Progress</option>
-                  <option value="completed">Completed</option>
-                </select>
-                <input
-                  type="date"
-                  className="form-input"
-                  value={taskFormData.due_date}
-                  onChange={(e) => setTaskFormData({ ...taskFormData, due_date: e.target.value })}
-                />
-              </div>
-              <div className="task-form-actions">
-                <button className="btn btn-primary btn-sm" onClick={onCreateTask}>
-                  Add
-                </button>
-                <button className="btn btn-secondary btn-sm" onClick={onCancelTaskForm}>
-                  Cancel
-                </button>
-              </div>
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <span>Created: {decision.date}</span>
+              {decision.review_at && <span>Review: {decision.review_at}</span>}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onToggleExpand}
+              >
+                {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                Tasks {taskCount > 0 && `(${taskCount})`}
+              </Button>
             </div>
-          ) : (
-            <button
-              className="btn btn-secondary btn-sm add-task-btn"
-              onClick={() => {
-                resetTaskForm();
-                setCreatingTaskForDecision(decision.id);
-              }}
-            >
-              + Add Task
-            </button>
-          )}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => handleEdit(decision)}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button variant="destructive" size="sm" onClick={() => handleDelete(decision.id)}>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
-      )}
-    </div>
+
+        {isExpanded && (
+          <div className="mt-4 pt-4 border-t">
+            <Separator className="mb-4" />
+            {tasksLoading ? (
+              <p className="text-muted-foreground">Loading tasks...</p>
+            ) : tasks.length === 0 ? (
+              <p className="text-muted-foreground text-sm">No tasks yet</p>
+            ) : (
+              <div className="space-y-2 mb-4">
+                {tasks.map((task: Task) => (
+                  <TaskItem
+                    key={task.id}
+                    task={task}
+                    isEditing={editingTaskId === task.id}
+                    onEdit={() => onEditTask(task)}
+                    onDelete={() => onDeleteTask(task.id)}
+                    onUpdate={() => onUpdateTask(task)}
+                    onCancel={onCancelTaskForm}
+                    formData={taskFormData}
+                    setFormData={setTaskFormData}
+                  />
+                ))}
+              </div>
+            )}
+
+            {creatingTaskForDecision === decision.id ? (
+              <div className="space-y-2 p-3 bg-muted/50 rounded-md">
+                <div className="flex gap-2 flex-wrap">
+                  <Input
+                    placeholder="Task title"
+                    value={taskFormData.title}
+                    onChange={(e) => setTaskFormData({ ...taskFormData, title: e.target.value })}
+                    className="flex-1"
+                    autoFocus
+                  />
+                  <Select
+                    value={taskFormData.status}
+                    onValueChange={(value) => setTaskFormData({ ...taskFormData, status: value as TaskStatus })}
+                  >
+                    <SelectTrigger className="w-[130px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="in_progress">In Progress</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="date"
+                    value={taskFormData.due_date}
+                    onChange={(e) => setTaskFormData({ ...taskFormData, due_date: e.target.value })}
+                    className="w-[130px]"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={onCreateTask}>
+                    Add
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={onCancelTaskForm}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  resetTaskForm();
+                  setCreatingTaskForDecision(decision.id);
+                }}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Task
+              </Button>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
-// Task Item Component
 interface TaskItemProps {
   task: Task;
   isEditing: boolean;
@@ -548,64 +573,73 @@ function TaskItem({
 }: TaskItemProps) {
   if (isEditing) {
     return (
-      <div className="task-item task-item-editing">
-        <div className="task-edit-form">
-          <input
-            type="text"
-            className="form-input"
+      <div className="p-3 bg-background border rounded-md">
+        <div className="flex gap-2 flex-wrap">
+          <Input
             value={formData.title}
             onChange={(e) => setFormData({ ...formData, title: e.target.value })}
             placeholder="Task title"
+            className="flex-1"
           />
-          <select
-            className="form-input"
+          <Select
             value={formData.status}
-            onChange={(e) => setFormData({ ...formData, status: e.target.value as TaskStatus })}
+            onValueChange={(value) => setFormData({ ...formData, status: value as TaskStatus })}
           >
-            <option value="pending">Pending</option>
-            <option value="in_progress">In Progress</option>
-            <option value="completed">Completed</option>
-          </select>
-          <input
+            <SelectTrigger className="w-[130px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="in_progress">In Progress</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
             type="date"
-            className="form-input"
             value={formData.due_date}
             onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+            className="w-[130px]"
           />
-          <div className="task-edit-actions">
-            <button className="btn btn-primary btn-sm" onClick={onUpdate}>
-              Save
-            </button>
-            <button className="btn btn-secondary btn-sm" onClick={onCancel}>
-              Cancel
-            </button>
-          </div>
+        </div>
+        <div className="flex gap-2 mt-2">
+          <Button size="sm" onClick={onUpdate}>
+            Save
+          </Button>
+          <Button size="sm" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="task-item">
-      <div className="task-item-content">
-        <span className={`task-status-indicator status-${task.status}`}>
-          {task.status === 'completed' ? '☑' : task.status === 'in_progress' ? '◐' : '☐'}
-        </span>
-        <span className="task-title">{task.title}</span>
-        {task.due_date && (
-          <span className="task-due-date">due: {task.due_date}</span>
+    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-md">
+      <div className="flex items-center gap-3">
+        {task.status === 'completed' ? (
+          <Check className="h-5 w-5 text-green-500" />
+        ) : task.status === 'in_progress' ? (
+          <div className="h-5 w-5 rounded-full border-2 border-blue-500" />
+        ) : (
+          <div className="h-5 w-5 rounded-full border-2 border-gray-400" />
         )}
-        <span className={`status-badge status-${task.status === 'completed' ? 'completed' : task.status === 'in_progress' ? 'ongoing' : 'pending'}`}>
-          {task.status.replace('_', ' ')}
+        <span className={task.status === 'completed' ? 'line-through text-muted-foreground' : ''}>
+          {task.title}
         </span>
+        {task.due_date && (
+          <span className="text-sm text-muted-foreground">due: {task.due_date}</span>
+        )}
+        <Badge variant="outline" className="text-xs">
+          {task.status.replace('_', ' ')}
+        </Badge>
       </div>
-      <div className="task-item-actions">
-        <button className="btn btn-secondary btn-sm" onClick={onEdit}>
-          Edit
-        </button>
-        <button className="btn btn-danger btn-sm" onClick={onDelete}>
-          Delete
-        </button>
+      <div className="flex gap-1">
+        <Button variant="ghost" size="sm" onClick={onEdit}>
+          <Pencil className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onDelete}>
+          <Trash2 className="h-4 w-4" />
+        </Button>
       </div>
     </div>
   );

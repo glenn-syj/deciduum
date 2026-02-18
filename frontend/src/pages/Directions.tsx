@@ -1,11 +1,31 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { directionsApi, Direction, Decision, Memo } from '../utils/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Plus, Pencil, Trash2, X } from 'lucide-react';
 
 interface DirectionDetails {
   direction: Direction;
   decisions: Decision[];
   memos: Memo[];
+}
+
+function getStatusVariant(status: string) {
+  switch (status) {
+    case 'completed':
+      return 'default';
+    case 'ongoing':
+      return 'outline';
+    case 'archived':
+      return 'secondary';
+    default:
+      return 'outline';
+  }
 }
 
 export default function Directions() {
@@ -109,11 +129,9 @@ export default function Directions() {
 
   if (isLoading) {
     return (
-      <div className="page">
-        <div className="page-header">
-          <h1>Directions</h1>
-        </div>
-        <div className="loading">Loading...</div>
+      <div className="space-y-6">
+        <h1 className="text-2xl font-semibold">Directions</h1>
+        <p className="text-muted-foreground">Loading...</p>
       </div>
     );
   }
@@ -121,136 +139,136 @@ export default function Directions() {
   const directions = directionsData?.data || [];
 
   return (
-    <div className="page">
-      <div className="page-header">
-        <h1>Directions</h1>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Directions</h1>
         {!isCreating && (
-          <button className="btn btn-primary" onClick={() => setIsCreating(true)}>
-            + New Direction
-          </button>
+          <Button onClick={() => setIsCreating(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Direction
+          </Button>
         )}
       </div>
 
       {isCreating && (
-        <div className="card form-card">
-          <h2 className="card-title">
-            {editingId ? 'Edit Direction' : 'New Direction'}
-          </h2>
-          <form onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label className="form-label">Title</label>
-              <input
-                type="text"
-                className="form-input"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                required
-              />
-            </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>{editingId ? 'Edit Direction' : 'New Direction'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="title">Title</Label>
+                <Input
+                  id="title"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  required
+                />
+              </div>
 
-            <div className="form-actions">
-              <button type="submit" className="btn btn-primary">
-                {editingId ? 'Update' : 'Create'}
-              </button>
-              <button type="button" className="btn btn-secondary" onClick={cancelForm}>
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
+              <div className="flex gap-2">
+                <Button type="submit">
+                  {editingId ? 'Update' : 'Create'}
+                </Button>
+                <Button type="button" variant="outline" onClick={cancelForm}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
       )}
 
-      <div className="directions-layout">
-        <div className="directions-list-section">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div>
           {directions.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">🧭</div>
-              <p>No directions yet. Create your first direction!</p>
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">No directions yet. Create your first direction!</p>
             </div>
           ) : (
-            <div className="list">
+            <div className="space-y-2">
               {directions.map((direction) => (
-                <div
-                  key={direction.id}
-                  className={`list-item direction-item ${
-                    selectedDirectionId === direction.id ? 'selected' : ''
-                  }`}
+                <Card 
+                  key={direction.id} 
+                  className={`cursor-pointer transition-colors hover:bg-muted/50 ${selectedDirectionId === direction.id ? 'border-primary' : ''}`}
+                  onClick={() => setSelectedDirectionId(direction.id)}
                 >
-                  <div
-                    className="list-item-content"
-                    onClick={() => setSelectedDirectionId(direction.id)}
-                  >
-                    <div className="list-item-title">{direction.title}</div>
-                    <div className="list-item-meta">
-                      Created: {direction.created_at?.split('T')[0]}
+                  <CardContent className="pt-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h3 className="font-semibold">{direction.title}</h3>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Created: {direction.created_at?.split('T')[0]}
+                        </p>
+                      </div>
+                      <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="sm" onClick={() => handleEdit(direction)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleDelete(direction.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="list-item-actions">
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => handleEdit(direction)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="btn btn-danger btn-sm"
-                      onClick={() => handleDelete(direction.id)}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
               ))}
             </div>
           )}
         </div>
 
         {selectedDirectionId && directionDetails && (
-          <div className="direction-details-section">
-            <div className="card">
-              <div className="card-header">
-                <h2 className="card-title">{directionDetails.direction.title}</h2>
-                <button className="btn btn-secondary btn-sm" onClick={closeDetails}>
-                  Close
-                </button>
-              </div>
+          <div>
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>{directionDetails.direction.title}</CardTitle>
+                  <Button variant="ghost" size="sm" onClick={closeDetails}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="font-semibold mb-3">Decisions ({directionDetails.decisions.length})</h3>
+                    {directionDetails.decisions.length === 0 ? (
+                      <p className="text-muted-foreground text-sm">No decisions in this direction</p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {directionDetails.decisions.map((decision) => (
+                          <li key={decision.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
+                            <span className="text-sm">{decision.title}</span>
+                            <Badge variant={getStatusVariant(decision.status) as any}>
+                              {decision.status}
+                            </Badge>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
 
-              <div className="direction-details-content">
-                <section className="details-section">
-                  <h3>Decisions ({directionDetails.decisions.length})</h3>
-                  {directionDetails.decisions.length === 0 ? (
-                    <p className="empty-text">No decisions in this direction</p>
-                  ) : (
-                    <ul className="details-list">
-                      {directionDetails.decisions.map((decision) => (
-                        <li key={decision.id} className="details-list-item">
-                          <span className="details-list-title">{decision.title}</span>
-                          <span className={`status-badge status-${decision.status}`}>
-                            {decision.status}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </section>
+                  <Separator />
 
-                <section className="details-section">
-                  <h3>Memos ({directionDetails.memos.length})</h3>
-                  {directionDetails.memos.length === 0 ? (
-                    <p className="empty-text">No memos in this direction</p>
-                  ) : (
-                    <ul className="details-list">
-                      {directionDetails.memos.map((memo) => (
-                        <li key={memo.id} className="details-list-item">
-                          <span className="details-list-content">{memo.content}</span>
-                          <span className="details-list-meta">{memo.date}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </section>
-              </div>
-            </div>
+                  <div>
+                    <h3 className="font-semibold mb-3">Memos ({directionDetails.memos.length})</h3>
+                    {directionDetails.memos.length === 0 ? (
+                      <p className="text-muted-foreground text-sm">No memos in this direction</p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {directionDetails.memos.map((memo) => (
+                          <li key={memo.id} className="p-2 bg-muted/50 rounded-md">
+                            <p className="text-sm truncate">{memo.content}</p>
+                            <p className="text-xs text-muted-foreground">{memo.date}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
       </div>

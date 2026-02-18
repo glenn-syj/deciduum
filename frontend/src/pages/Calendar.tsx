@@ -1,10 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin from '@fullcalendar/interaction';
 import { decisionsApi, memosApi, tasksApi, Decision, Memo, Task } from '../utils/api';
+import { Skeleton } from '@/components/ui/skeleton';
+import { AlertCircle } from 'lucide-react';
 
 interface CalendarEvent {
   id: string;
@@ -25,8 +23,38 @@ function truncateText(text: string, maxLength: number): string {
 }
 
 export default function Calendar() {
+  const [isClient, setIsClient] = useState(false);
+  
+  // Store ALL FullCalendar modules in state
+  const [calendarModules, setCalendarModules] = useState<{
+    FullCalendar: typeof import('@fullcalendar/react').default;
+    dayGridPlugin: typeof import('@fullcalendar/daygrid').default;
+    timeGridPlugin: typeof import('@fullcalendar/timegrid').default;
+    interactionPlugin: typeof import('@fullcalendar/interaction').default;
+  } | null>(null);
+  
+  useEffect(() => {
+    setIsClient(true);
+    
+    // Dynamically import ALL FullCalendar modules together
+    Promise.all([
+      import('@fullcalendar/react'),
+      import('@fullcalendar/daygrid'),
+      import('@fullcalendar/timegrid'),
+      import('@fullcalendar/interaction'),
+    ]).then(([FC, dayGrid, timeGrid, interaction]) => {
+      setCalendarModules({
+        FullCalendar: FC.default,
+        dayGridPlugin: dayGrid.default,
+        timeGridPlugin: timeGrid.default,
+        interactionPlugin: interaction.default,
+      });
+    }).catch(err => {
+      console.error('Failed to load FullCalendar:', err);
+    });
+  }, []);
 
-  // Fetch all data sources
+  // Only fetch data on client
   const { data: decisionsData, isLoading: decisionsLoading, error: decisionsError } = useQuery({
     queryKey: ['decisions'],
     queryFn: async () => {
@@ -35,6 +63,7 @@ export default function Calendar() {
     },
     staleTime: 5 * 60 * 1000,
     retry: 2,
+    enabled: isClient,
   });
 
   const { data: memosData, isLoading: memosLoading, error: memosError } = useQuery({
@@ -45,6 +74,7 @@ export default function Calendar() {
     },
     staleTime: 5 * 60 * 1000,
     retry: 2,
+    enabled: isClient,
   });
 
   const { data: tasksData, isLoading: tasksLoading, error: tasksError } = useQuery({
@@ -55,16 +85,16 @@ export default function Calendar() {
     },
     staleTime: 5 * 60 * 1000,
     retry: 2,
+    enabled: isClient,
   });
 
   const isLoading = decisionsLoading || memosLoading || tasksLoading;
   const error = decisionsError || memosError || tasksError;
 
-  // Transform data into calendar events
   const events = useMemo<CalendarEvent[]>(() => {
+    if (!isClient) return [];
     const calendarEvents: CalendarEvent[] = [];
 
-    // Add decisions
     decisionsData?.forEach((decision: Decision) => {
       if (decision.date) {
         calendarEvents.push({
@@ -73,15 +103,11 @@ export default function Calendar() {
           start: decision.date,
           backgroundColor: '#3b82f6',
           borderColor: '#2563eb',
-          extendedProps: {
-            type: 'decision',
-            data: decision,
-          },
+          extendedProps: { type: 'decision', data: decision },
         });
       }
     });
 
-    // Add memos
     memosData?.forEach((memo: Memo) => {
       if (memo.date) {
         calendarEvents.push({
@@ -90,15 +116,11 @@ export default function Calendar() {
           start: memo.date,
           backgroundColor: '#22c55e',
           borderColor: '#16a34a',
-          extendedProps: {
-            type: 'memo',
-            data: memo,
-          },
+          extendedProps: { type: 'memo', data: memo },
         });
       }
     });
 
-    // Add tasks
     tasksData?.forEach((task: Task) => {
       if (task.due_date) {
         calendarEvents.push({
@@ -107,37 +129,24 @@ export default function Calendar() {
           start: task.due_date,
           backgroundColor: '#f97316',
           borderColor: '#ea580c',
-          extendedProps: {
-            type: 'task',
-            data: task,
-          },
+          extendedProps: { type: 'task', data: task },
         });
       }
     });
 
     return calendarEvents;
-  }, [decisionsData, memosData, tasksData]);
+  }, [decisionsData, memosData, tasksData, isClient]);
 
   const handleEventClick = (info: any) => {
-    const event = info.event;
-    const { type, data } = event.extendedProps;
-    
+    const { type, data } = info.event.extendedProps;
     let message = '';
-    switch (type) {
-      case 'decision':
-        const decision = data as Decision;
-        message = `Decision: ${decision.title}\nStatus: ${decision.status}\nDate: ${decision.date}`;
-        break;
-      case 'memo':
-        const memo = data as Memo;
-        message = `Memo: ${memo.content}\nDate: ${memo.date}`;
-        break;
-      case 'task':
-        const task = data as Task;
-        message = `Task: ${task.title}\nStatus: ${task.status}\nDue: ${task.due_date}`;
-        break;
+    if (type === 'decision') {
+      message = `Decision: ${data.title}\nStatus: ${data.status}\nDate: ${data.date}`;
+    } else if (type === 'memo') {
+      message = `Memo: ${data.content}\nDate: ${data.date}`;
+    } else if (type === 'task') {
+      message = `Task: ${data.title}\nStatus: ${data.status}\nDue: ${data.due_date}`;
     }
-    
     alert(message);
   };
 
@@ -148,29 +157,47 @@ export default function Calendar() {
     return String(err);
   };
 
-  return (
-    <div className="page">
-      <div className="page-header">
-        <h1>Calendar</h1>
+  // Show loading state while modules load
+  if (!isClient || !calendarModules) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-semibold">Calendar</h1>
+        <div className="bg-card border rounded-lg p-4">
+          <Skeleton className="h-[400px] w-full" />
+        </div>
       </div>
+    );
+  }
+
+  const { FullCalendar, dayGridPlugin, timeGridPlugin, interactionPlugin } = calendarModules;
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-semibold">Calendar</h1>
       
       {isLoading && (
-        <div className="loading">Loading calendar events...</div>
+        <div className="bg-card border rounded-lg p-4">
+          <Skeleton className="h-[400px] w-full" />
+        </div>
       )}
 
       {error && (
-        <div className="error-message" style={{ padding: '1rem', backgroundColor: '#fee2e2', border: '1px solid #ef4444', borderRadius: '4px', marginBottom: '1rem' }}>
-          <p style={{ color: '#dc2626', fontWeight: 'bold' }}>Failed to load calendar events</p>
-          <p style={{ color: '#991b1b', fontSize: '0.875rem' }}>Error: {getErrorMessage(error)}</p>
-          {decisionsError && <p style={{ color: '#991b1b', fontSize: '0.75rem' }}>Decisions API: {getErrorMessage(decisionsError)}</p>}
-          {memosError && <p style={{ color: '#991b1b', fontSize: '0.75rem' }}>Memos API: {getErrorMessage(memosError)}</p>}
-          {tasksError && <p style={{ color: '#991b1b', fontSize: '0.75rem' }}>Tasks API: {getErrorMessage(tasksError)}</p>}
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-2">
+          <AlertCircle className="h-5 w-5 text-red-500" />
+          <div>
+            <p className="text-red-600 font-bold">Failed to load calendar events</p>
+            <p className="text-red-600 text-sm">{getErrorMessage(error)}</p>
+          </div>
         </div>
       )}
       
-      <div className="calendar-container">
+      <div className="bg-card border rounded-lg p-4 shadow-sm">
         <FullCalendar
-          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+          plugins={[
+            dayGridPlugin,
+            timeGridPlugin,
+            interactionPlugin,
+          ]}
           initialView="dayGridMonth"
           headerToolbar={{
             left: 'prev,next today',
@@ -186,28 +213,20 @@ export default function Calendar() {
           nowIndicator={true}
           selectable={true}
           editable={false}
-          // Mobile responsive
-          windowResize={(arg) => {
-            const calendarApi = arg.view.calendar;
-            if (window.innerWidth < 768) {
-              calendarApi.changeView('dayGridMonth');
-            }
-          }}
         />
       </div>
 
-      {/* Legend */}
-      <div className="calendar-legend">
-        <div className="legend-item">
-          <span className="legend-color" style={{ backgroundColor: '#3b82f6' }}></span>
+      <div className="flex gap-6 p-4 bg-card border rounded-lg">
+        <div className="flex items-center gap-2">
+          <span className="w-4 h-4 rounded" style={{ backgroundColor: '#3b82f6' }}></span>
           <span>Decisions</span>
         </div>
-        <div className="legend-item">
-          <span className="legend-color" style={{ backgroundColor: '#22c55e' }}></span>
+        <div className="flex items-center gap-2">
+          <span className="w-4 h-4 rounded" style={{ backgroundColor: '#22c55e' }}></span>
           <span>Memos</span>
         </div>
-        <div className="legend-item">
-          <span className="legend-color" style={{ backgroundColor: '#f97316' }}></span>
+        <div className="flex items-center gap-2">
+          <span className="w-4 h-4 rounded" style={{ backgroundColor: '#f97316' }}></span>
           <span>Tasks</span>
         </div>
       </div>
