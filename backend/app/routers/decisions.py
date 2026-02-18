@@ -5,9 +5,10 @@ from datetime import datetime, date
 from typing import Optional
 
 from app.core.database import get_db
-from app.models.models import Decision, DecisionLog, Direction
+from app.models.models import Decision, DecisionLog, Direction, Task
 from app.schemas.decision import DecisionCreate, DecisionUpdate, DecisionResponse
 from app.schemas.decision_log import DecisionLogCreate, DecisionLogResponse
+from app.schemas.task import TaskCreate, TaskResponse
 from app.schemas.common import PaginatedResponse
 
 router = APIRouter(prefix="/decisions", tags=["decisions"])
@@ -428,3 +429,124 @@ async def get_decision_log(
         )
 
     return {"data": DecisionLogResponse.model_validate(log)}
+
+
+# Decision Tasks endpoints
+
+
+@router.get("/{decision_id}/tasks", response_model=PaginatedResponse)
+async def list_decision_tasks(
+    decision_id: str,
+    status: Optional[str] = Query(None, pattern="^(pending|in_progress|completed)$"),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    sort_by: str = Query("created_at", pattern="^(created_at|due_date|status)$"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$"),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all tasks for a decision."""
+    # Verify decision exists
+    decision_query = select(Decision).where(
+        and_(Decision.id == decision_id, Decision.deleted_at.is_(None))
+    )
+    decision_result = await db.execute(decision_query)
+    decision = decision_result.scalar_one_or_none()
+
+    if not decision:
+        raise HTTPException(
+            status_code=404,
+            detail=create_error_response(
+                "RESOURCE_NOT_FOUND",
+                "Decision not found",
+                {"resource_type": "decision", "id": decision_id},
+            ),
+        )
+
+    # Build query
+    conditions = [Task.decision_id == decision_id, Task.deleted_at.is_(None)]
+    if status:
+        conditions.append(Task.status == status)
+
+    # Count total
+    count_query = select(func.count(Task.id)).where(and_(*conditions))
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    # Get paginated results
+    offset = (page - 1) * limit
+    sort_column = getattr(Task, sort_by, Task.created_at)
+    if sort_order == "desc":
+        sort_column = sort_column.desc()
+
+    query = (
+        select(Task)
+        .where(and_(*conditions))
+        .order_by(sort_column)
+        .offset(offset)
+        .limit(limit)
+    )
+    result = await db.execute(query)
+    tasks = result.scalars().all()
+
+    return PaginatedResponse(
+        data=[TaskResponse.model_validate(t) for t in tasks],
+        meta={
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "total_pages": (total + limit - 1) // limit if total > 0 else 0,
+        },
+    )
+
+
+@router.post("/{decision_id}/tasks", status_code=201, response_model=dict)
+async def create_decision_task(
+    decision_id: str,
+    task: TaskCreate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a new task for a decision."""
+    # Verify decision exists
+    decision_query = select(Decision).where(
+        and_(Decision.id == decision_id, Decision.deleted_at.is_(None))
+    )
+    decision_result = await db.execute(decision_query)
+    decision = decision_result.scalar_one_or_none()
+
+    if not decision:
+        raise HTTPException(
+            status_code=404,
+            detail=create_error_response(
+                "RESOURCE_NOT_FOUND",
+                "Decision not found",
+                {"resource_type": "decision", "id": decision_id},
+            ),
+        )
+
+    # If decision_id is provided in body, ensure it matches path
+    if task.decision_id and task.decision_id != decision_id:
+        raise HTTPException(
+            status_code=422,
+            detail=create_error_response(
+                "CONSTRAINT_VIOLATION",
+                "Decision ID in body must match path parameter",
+                {
+                    "field": "decision_id",
+                    "path_value": decision_id,
+                    "body_value": task.decision_id,
+                },
+            ),
+        )
+
+    db_task = Task(
+        title=task.title,
+        status=task.status,
+        due_date=task.due_date,
+        notes=task.notes,
+        decision_id=decision_id,
+    )
+    db.add(db_task)
+    await db.commit()
+    await db.refresh(db_task)
+
+    return {"data": TaskResponse.model_validate(db_task)}
