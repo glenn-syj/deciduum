@@ -1,5 +1,5 @@
 import { Routes, Route, Link } from 'react-router-dom'
-import Today from './pages/Today'
+import Calendar from './pages/Calendar'
 import Decisions from './pages/Decisions'
 import Memos from './pages/Memos'
 import Directions from './pages/Directions'
@@ -9,7 +9,7 @@ function App() {
   return (
     <div className="app">
       <nav className="nav">
-        <Link to="/">Today</Link>
+        <Link to="/">Calendar</Link>
         <Link to="/decisions">Decisions</Link>
         <Link to="/memos">Memos</Link>
         <Link to="/directions">Directions</Link>
@@ -17,7 +17,7 @@ function App() {
       </nav>
       <main className="main">
         <Routes>
-          <Route path="/" element={<Today />} />
+          <Route path="/" element={<Calendar />} />
           <Route path="/decisions" element={<Decisions />} />
           <Route path="/memos" element={<Memos />} />
           <Route path="/directions" element={<Directions />} />
