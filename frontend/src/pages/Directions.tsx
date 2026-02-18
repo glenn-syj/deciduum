@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Plus, Pencil, Trash2, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Compass } from 'lucide-react';
 
 interface DirectionDetails {
   direction: Direction;
@@ -130,8 +130,15 @@ export default function Directions() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-semibold">Directions</h1>
-        <p className="text-muted-foreground">Loading...</p>
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight">Directions</h1>
+          <p className="text-sm text-muted-foreground">Loading directions...</p>
+        </div>
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-32 bg-muted/50 rounded-lg animate-pulse" />
+          ))}
+        </div>
       </div>
     );
   }
@@ -139,11 +146,14 @@ export default function Directions() {
   const directions = directionsData?.data || [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Directions</h1>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Directions</h1>
+          <p className="text-sm text-muted-foreground mt-1">Define the directions that guide your decisions</p>
+        </div>
         {!isCreating && (
-          <Button onClick={() => setIsCreating(true)}>
+          <Button onClick={() => setIsCreating(true)} className="shadow-sm hover:shadow-md transition-shadow">
             <Plus className="mr-2 h-4 w-4" />
             New Direction
           </Button>
@@ -151,11 +161,11 @@ export default function Directions() {
       </div>
 
       {isCreating && (
-        <Card>
+        <Card className="shadow-sm border-border/50">
           <CardHeader>
             <CardTitle>{editingId ? 'Edit Direction' : 'New Direction'}</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-6">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="title">Title</Label>
@@ -183,21 +193,25 @@ export default function Directions() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div>
           {directions.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">No directions yet. Create your first direction!</p>
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="rounded-full bg-muted p-4 mb-4">
+                <Compass className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-semibold">No directions yet</h3>
+              <p className="text-sm text-muted-foreground mt-1">Create your first direction to get started</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {directions.map((direction) => (
                 <Card 
                   key={direction.id} 
-                  className={`cursor-pointer transition-colors hover:bg-muted/50 ${selectedDirectionId === direction.id ? 'border-primary' : ''}`}
+                  className={`cursor-pointer transition-all duration-200 shadow-sm hover:shadow-md border-border/50 ${selectedDirectionId === direction.id ? 'border-primary ring-1 ring-primary' : ''}`}
                   onClick={() => setSelectedDirectionId(direction.id)}
                 >
-                  <CardContent className="pt-6">
+                  <CardContent className="p-6">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <h3 className="font-semibold">{direction.title}</h3>
+                        <h3 className="text-lg font-medium">{direction.title}</h3>
                         <p className="text-sm text-muted-foreground mt-1">
                           Created: {direction.created_at?.split('T')[0]}
                         </p>
@@ -220,7 +234,7 @@ export default function Directions() {
 
         {selectedDirectionId && directionDetails && (
           <div>
-            <Card>
+            <Card className="shadow-sm border-border/50">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>{directionDetails.direction.title}</CardTitle>
@@ -229,7 +243,7 @@ export default function Directions() {
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-6">
                 <div className="space-y-6">
                   <div>
                     <h3 className="font-semibold mb-3">Decisions ({directionDetails.decisions.length})</h3>

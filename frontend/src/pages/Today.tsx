@@ -29,8 +29,15 @@ export default function Today() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-semibold">Today</h1>
-        <p className="text-muted-foreground">Loading...</p>
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight">Today</h1>
+          <p className="text-sm text-muted-foreground">Loading today's overview...</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-48 bg-muted/50 rounded-lg animate-pulse" />
+          ))}
+        </div>
       </div>
     );
   }
@@ -38,7 +45,10 @@ export default function Today() {
   if (error) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-semibold">Today</h1>
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight">Today</h1>
+          <p className="text-sm text-muted-foreground">Error loading today's data</p>
+        </div>
         <p className="text-destructive">Error loading today's data</p>
       </div>
     );
@@ -47,17 +57,20 @@ export default function Today() {
   const today = data;
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Today - {today?.date}</h1>
+    <div className="space-y-8">
+      <div className="space-y-2">
+        <h1 className="text-2xl font-semibold tracking-tight">Today</h1>
+        <p className="text-sm text-muted-foreground">{today?.date}</p>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card>
+        <Card className="shadow-sm border-border/50">
           <CardHeader>
-            <CardTitle>Ongoing Decisions</CardTitle>
+            <CardTitle className="text-base">Ongoing Decisions</CardTitle>
           </CardHeader>
           <CardContent>
             {today?.ongoing_decisions?.length === 0 ? (
-              <p className="text-muted-foreground text-sm">No ongoing decisions</p>
+              <p className="text-sm text-muted-foreground">No ongoing decisions</p>
             ) : (
               <ul className="space-y-2">
                 {today?.ongoing_decisions?.map((decision: Decision) => (
@@ -66,12 +79,12 @@ export default function Today() {
                       to={`/decisions`} 
                       className="flex items-center justify-between p-2 rounded-md hover:bg-muted transition-colors"
                     >
-                      <span className="font-medium">{decision.title}</span>
+                      <span className="font-medium text-sm">{decision.title}</span>
                       <div className="flex items-center gap-2">
                         <Badge variant={getStatusVariant(decision.status) as any}>
                           {decision.status}
                         </Badge>
-                        <span className="text-sm text-muted-foreground">{decision.date}</span>
+                        <span className="text-xs text-muted-foreground">{decision.date}</span>
                       </div>
                     </Link>
                   </li>
@@ -81,13 +94,13 @@ export default function Today() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="shadow-sm border-border/50">
           <CardHeader>
-            <CardTitle>Today's Decisions</CardTitle>
+            <CardTitle className="text-base">Today's Decisions</CardTitle>
           </CardHeader>
           <CardContent>
             {today?.todays_decisions?.length === 0 ? (
-              <p className="text-muted-foreground text-sm">No decisions made today</p>
+              <p className="text-sm text-muted-foreground">No decisions made today</p>
             ) : (
               <ul className="space-y-2">
                 {today?.todays_decisions?.map((decision: Decision) => (
@@ -96,7 +109,7 @@ export default function Today() {
                       to={`/decisions`} 
                       className="flex items-center justify-between p-2 rounded-md hover:bg-muted transition-colors"
                     >
-                      <span className="font-medium">{decision.title}</span>
+                      <span className="font-medium text-sm">{decision.title}</span>
                       <Badge variant={getStatusVariant(decision.status) as any}>
                         {decision.status}
                       </Badge>
@@ -108,13 +121,13 @@ export default function Today() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="shadow-sm border-border/50">
           <CardHeader>
-            <CardTitle>Today's Memos</CardTitle>
+            <CardTitle className="text-base">Today's Memos</CardTitle>
           </CardHeader>
           <CardContent>
             {today?.todays_memos?.length === 0 ? (
-              <p className="text-muted-foreground text-sm">No memos today</p>
+              <p className="text-sm text-muted-foreground">No memos today</p>
             ) : (
               <ul className="space-y-2">
                 {today?.todays_memos?.map((memo: Memo) => (

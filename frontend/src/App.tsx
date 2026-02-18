@@ -18,11 +18,11 @@ const navItems = [
 function App() {
   return (
     <div className="min-h-screen bg-background">
-      <nav className="border-b bg-card">
-        <div className="container mx-auto px-4">
+      <nav className="border-b bg-card/60 backdrop-blur-md sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto px-4">
           <div className="flex h-16 items-center space-x-2">
-            <Compass className="h-6 w-6 text-primary" />
-            <span className="text-lg font-semibold">Deciduum</span>
+            <Compass className="h-7 w-7 text-primary" />
+            <span className="text-xl font-bold tracking-tight">Deciduum</span>
             <div className="ml-auto flex items-center space-x-1">
               {navItems.map((item) => (
                 <NavLink
@@ -30,22 +30,22 @@ function App() {
                   to={item.to}
                   className={({ isActive }) =>
                     cn(
-                      "flex items-center space-x-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                      "flex items-center space-x-2 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
                       isActive
-                        ? "bg-secondary text-secondary-foreground"
+                        ? "bg-secondary text-secondary-foreground shadow-sm"
                         : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
                     )
                   }
                 >
                   <item.icon className="h-4 w-4" />
-                  <span>{item.label}</span>
+                  <span className="hidden sm:inline">{item.label}</span>
                 </NavLink>
               ))}
             </div>
           </div>
         </div>
       </nav>
-      <main className="container mx-auto px-4 py-6">
+      <main className="max-w-6xl mx-auto px-4 py-8">
         <Routes>
           <Route path="/" element={<Calendar />} />
           <Route path="/decisions" element={<Decisions />} />

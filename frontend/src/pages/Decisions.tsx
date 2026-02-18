@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, Check } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, Check, Inbox } from 'lucide-react';
 
 function getStatusVariant(status: string) {
   switch (status) {
@@ -242,8 +242,15 @@ export default function Decisions() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-semibold">Decisions</h1>
-        <p className="text-muted-foreground">Loading...</p>
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight">Decisions</h1>
+          <p className="text-sm text-muted-foreground">Loading decisions...</p>
+        </div>
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-32 bg-muted/50 rounded-lg animate-pulse" />
+          ))}
+        </div>
       </div>
     );
   }
@@ -252,11 +259,14 @@ export default function Decisions() {
   const directions = directionsData?.data || [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Decisions</h1>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Decisions</h1>
+          <p className="text-sm text-muted-foreground mt-1">Manage and track your important decisions</p>
+        </div>
         {!isCreating && (
-          <Button onClick={() => setIsCreating(true)}>
+          <Button onClick={() => setIsCreating(true)} className="shadow-sm hover:shadow-md transition-shadow">
             <Plus className="mr-2 h-4 w-4" />
             New Decision
           </Button>
@@ -264,11 +274,11 @@ export default function Decisions() {
       </div>
 
       {isCreating && (
-        <Card>
+        <Card className="shadow-sm border-border/50">
           <CardHeader>
             <CardTitle>{editingId ? 'Edit Decision' : 'New Decision'}</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-6">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="title">Title</Label>
@@ -356,8 +366,16 @@ export default function Decisions() {
       )}
 
       {decisions.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">No decisions yet. Create your first decision!</p>
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="rounded-full bg-muted p-4 mb-4">
+            <Inbox className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-semibold">No decisions yet</h3>
+          <p className="text-sm text-muted-foreground mt-1">Create your first decision to get started</p>
+          <Button onClick={() => setIsCreating(true)} className="mt-6 shadow-sm hover:shadow-md transition-shadow">
+            <Plus className="mr-2 h-4 w-4" />
+            Create your first decision
+          </Button>
         </div>
       ) : (
         <div className="space-y-4">
@@ -433,12 +451,12 @@ function DecisionCard({
   const taskCount = tasks.length;
 
   return (
-    <Card>
-      <CardContent className="pt-6">
+    <Card className="shadow-sm hover:shadow-md transition-shadow border-border/50">
+      <CardContent className="p-6">
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-2">
-              <h3 className="font-semibold text-lg">{decision.title}</h3>
+              <h3 className="text-lg font-medium">{decision.title}</h3>
               <Badge variant={getStatusVariant(decision.status) as any}>
                 {decision.status}
               </Badge>
