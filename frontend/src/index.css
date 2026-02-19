@@ -475,6 +475,337 @@ body {
   font-size: 0.875rem;
 }
 
+/* Journey View - Decision Timeline */
+.journey-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.journey-card {
+  background-color: var(--color-bg);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.journey-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.journey-header:hover {
+  background-color: var(--color-bg-secondary);
+}
+
+.journey-title-section {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.journey-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.journey-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Compact Timeline Preview */
+.journey-timeline {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1.25rem;
+  background-color: var(--color-bg-secondary);
+  border-top: 1px solid var(--color-border);
+  cursor: pointer;
+  overflow-x: auto;
+  gap: 0.25rem;
+}
+
+.journey-timeline::-webkit-scrollbar {
+  height: 4px;
+}
+
+.journey-timeline::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.journey-timeline::-webkit-scrollbar-thumb {
+  background-color: var(--color-border);
+  border-radius: 2px;
+}
+
+.timeline-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.timeline-node .node-marker {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.timeline-node .node-label {
+  font-size: 0.625rem;
+  color: var(--color-text-secondary);
+  margin-top: 0.25rem;
+  white-space: nowrap;
+}
+
+.timeline-node.origin .node-marker {
+  color: var(--color-text-secondary);
+}
+
+.timeline-node.current.status-ongoing .node-marker {
+  color: var(--color-primary);
+}
+
+.timeline-node.current.status-completed .node-marker {
+  color: #059669;
+}
+
+.timeline-node.current.status-archived .node-marker {
+  color: #6b7280;
+}
+
+.timeline-path {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 50px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--color-border) 0%, var(--color-border) 100%);
+  margin: 0 0.5rem;
+  position: relative;
+}
+
+.timeline-marker {
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+.timeline-marker.reflection {
+  top: -12px;
+}
+
+.timeline-marker .marker-icon {
+  font-size: 0.875rem;
+}
+
+.timeline-mestone {
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+.timeline-mestone .node-marker {
+  font-size: 0.625rem;
+}
+
+/* Expanded Journey View */
+.journey-expanded {
+  padding: 1.25rem;
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-bg);
+}
+
+/* Horizontal Scroll Timeline */
+.journey-scroll {
+  overflow-x: auto;
+  margin-bottom: 1.25rem;
+  padding: 0.5rem 0;
+}
+
+.journey-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.journey-scroll::-webkit-scrollbar-track {
+  background: var(--color-bg-secondary);
+  border-radius: 3px;
+}
+
+.journey-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--color-border);
+  border-radius: 3px;
+}
+
+.journey-scroll-content {
+  display: flex;
+  align-items: flex-start;
+  min-width: max-content;
+  padding: 0.5rem;
+  gap: 0;
+}
+
+.timeline-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 120px;
+  max-width: 200px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.timeline-item-connector {
+  width: 100%;
+  height: 2px;
+  background-color: var(--color-border);
+  position: absolute;
+  top: 16px;
+  left: -50%;
+  z-index: 0;
+}
+
+.timeline-item:first-child .timeline-item-connector {
+  display: none;
+}
+
+.timeline-item-marker {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-bg);
+  border-radius: 50%;
+  position: relative;
+  z-index: 1;
+  margin-bottom: 0.5rem;
+}
+
+.timeline-item-marker .node-marker {
+  font-size: 1.25rem;
+}
+
+.timeline-item-marker .marker-icon {
+  font-size: 1.25rem;
+}
+
+.timeline-item.origin .timeline-item-marker .node-marker {
+  color: var(--color-text-secondary);
+}
+
+.timeline-item.reflection .timeline-item-marker .marker-icon {
+  font-size: 1.125rem;
+}
+
+.timeline-item.type-note .timeline-item-marker .node-marker {
+  color: var(--color-primary);
+}
+
+.timeline-item.type-reflection .timeline-item-marker .node-marker {
+  color: #8b5cf6;
+}
+
+.timeline-item.type-state_change .timeline-item-marker .node-marker {
+  color: #059669;
+}
+
+.timeline-item.current.status-ongoing .timeline-item-marker .node-marker {
+  color: var(--color-primary);
+}
+
+.timeline-item.current.status-completed .timeline-item-marker .node-marker {
+  color: #059669;
+}
+
+.timeline-item.current.status-archived .timeline-item-marker .node-marker {
+  color: #6b7280;
+}
+
+.timeline-item-content {
+  text-align: center;
+  padding: 0 0.5rem;
+  cursor: default;
+}
+
+.timeline-item-content.clickable {
+  cursor: pointer;
+}
+
+.timeline-item-date {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.25rem;
+}
+
+.timeline-item-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text);
+  margin-bottom: 0.125rem;
+}
+
+.timeline-item-body {
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+}
+
+.timeline-item-body .read-more {
+  color: var(--color-primary);
+  font-size: 0.75rem;
+  cursor: pointer;
+  margin-left: 0.25rem;
+}
+
+.timeline-item-type {
+  font-size: 0.6875rem;
+  color: var(--color-text-secondary);
+  text-transform: capitalize;
+  margin-top: 0.25rem;
+  opacity: 0.8;
+}
+
+/* Add Log Form */
+.log-form {
+  padding: 1rem;
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+}
+
+.log-form-row {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.log-type-select {
+  flex: 1;
+}
+
+.status-select {
+  flex: 1;
+}
+
+.log-content {
+  margin-bottom: 0.75rem;
+}
+
+.log-form-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.add-log-btn {
+  width: 100%;
+  justify-content: center;
+}
+
 /* Tasks Section */
 .tasks-toggle-btn {
   background: none;
