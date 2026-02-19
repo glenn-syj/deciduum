@@ -1,76 +1,75 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { decisionsApi, Decision, directionsApi, tasksApi, Task, TaskStatus } from '../utils/api';
+import { decisionsApi, directionsApi, DecisionLog } from '../utils/api';
+
+type LogType = 'note' | 'reflection' | 'state_change';
+type DecisionStatus = 'completed' | 'ongoing' | 'archived';
+
+interface Decision {
+  id: string;
+  title: string;
+  date: string;
+  status: DecisionStatus;
+  review_at: string | null;
+  direction_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface NewLogData {
+  type: LogType;
+  content: string;
+}
 
 export default function Decisions() {
   const queryClient = useQueryClient();
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [expandedDecisionId, setExpandedDecisionId] = useState<string | null>(null);
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [creatingTaskForDecision, setCreatingTaskForDecision] = useState<string | null>(null);
+  const [selectedDecisionId, setSelectedDecisionId] = useState<string | null>(null);
+  const [addingLogForDecision, setAddingLogForDecision] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     date: new Date().toISOString().split('T')[0],
-    status: 'ongoing' as 'completed' | 'ongoing' | 'archived',
+    status: 'ongoing' as DecisionStatus,
     review_at: '',
     direction_id: '',
   });
 
-  // Task form state
-  const [taskFormData, setTaskFormData] = useState({
-    title: '',
-    status: 'pending' as TaskStatus,
-    due_date: '',
-    notes: '',
+  // Log form state
+  const [logFormData, setLogFormData] = useState({
+    type: 'note' as LogType,
+    content: '',
+    newStatus: '' as DecisionStatus | '',
   });
 
-  // Fetch tasks for a specific decision
-  const useTasksForDecision = (decisionId: string) => {
+  // Fetch logs for a specific decision
+  const useLogsForDecision = (decisionId: string) => {
     return useQuery({
-      queryKey: ['tasks', decisionId],
+      queryKey: ['logs', decisionId],
       queryFn: async () => {
-        const response = await tasksApi.listByDecision(decisionId);
+        const response = await decisionsApi.listLogs(decisionId);
         return response.data;
       },
       enabled: !!decisionId,
     });
   };
 
-  const createTaskMutation = useMutation({
-    mutationFn: ({ decisionId, data }: { decisionId: string; data: { title: string; status?: string; due_date?: string | null; notes?: string | null } }) =>
-      tasksApi.createForDecision(decisionId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      setCreatingTaskForDecision(null);
-      resetTaskForm();
+  const createLogMutation = useMutation({
+    mutationFn: ({ decisionId, data }: { decisionId: string; data: NewLogData }) =>
+      decisionsApi.createLog(decisionId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['logs', variables.decisionId] });
+      queryClient.invalidateQueries({ queryKey: ['decisions'] });
+      setAddingLogForDecision(null);
+      resetLogForm();
     },
   });
 
-  const updateTaskMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Task> }) =>
-      tasksApi.update(id, data),
-    onSuccess: () => {
-      // Extract decisionId from the task id format or refetch all
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      setEditingTaskId(null);
-      resetTaskForm();
-    },
-  });
-
-  const deleteTaskMutation = useMutation({
-    mutationFn: (id: string) => tasksApi.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-    },
-  });
-
-  const resetTaskForm = () => {
-    setTaskFormData({
-      title: '',
-      status: 'pending',
-      due_date: '',
-      notes: '',
+  const resetLogForm = () => {
+    setLogFormData({
+      type: 'note',
+      content: '',
+      newStatus: '',
     });
   };
 
@@ -92,10 +91,14 @@ export default function Decisions() {
 
   const createMutation = useMutation({
     mutationFn: (data: Partial<Decision>) => decisionsApi.create(data),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['decisions'] });
       setIsCreating(false);
       resetForm();
+      // Auto-expand the newly created decision's journey
+      if (data.data?.id) {
+        setSelectedDecisionId(data.data.id);
+      }
     },
   });
 
@@ -167,55 +170,27 @@ export default function Decisions() {
     resetForm();
   };
 
-  // Task handlers
-  const handleCreateTask = (decisionId: string) => {
-    createTaskMutation.mutate({
-      decisionId,
-      data: {
-        title: taskFormData.title,
-        status: taskFormData.status,
-        due_date: taskFormData.due_date || null,
-        notes: taskFormData.notes || null,
-      },
-    });
-  };
+  // Log handlers
+  const handleCreateLog = (decisionId: string) => {
+    const logData: NewLogData = {
+      type: logFormData.type,
+      content: logFormData.content,
+    };
 
-  const handleUpdateTask = (task: Task) => {
-    updateTaskMutation.mutate({
-      id: task.id,
-      data: {
-        title: taskFormData.title || task.title,
-        status: taskFormData.status || task.status,
-        due_date: taskFormData.due_date || null,
-        notes: taskFormData.notes || null,
-      },
-    });
-  };
-
-  const handleDeleteTask = (taskId: string) => {
-    if (confirm('Are you sure you want to delete this task?')) {
-      deleteTaskMutation.mutate(taskId);
+    // If state_change and new status provided, append to content
+    if (logFormData.type === 'state_change' && logFormData.newStatus) {
+      logData.content = `Status changed to ${logFormData.newStatus}${logData.content ? ': ' + logData.content : ''}`;
+      
+      // Also update the decision status
+      decisionsApi.update(decisionId, { status: logFormData.newStatus as DecisionStatus });
     }
+
+    createLogMutation.mutate({ decisionId, data: logData });
   };
 
-  const startEditTask = (task: Task) => {
-    setEditingTaskId(task.id);
-    setTaskFormData({
-      title: task.title,
-      status: task.status,
-      due_date: task.due_date || '',
-      notes: task.notes || '',
-    });
-  };
-
-  const cancelTaskForm = () => {
-    setCreatingTaskForDecision(null);
-    setEditingTaskId(null);
-    resetTaskForm();
-  };
-
-  const toggleTasksSection = (decisionId: string) => {
-    setExpandedDecisionId(expandedDecisionId === decisionId ? null : decisionId);
+  const cancelLogForm = () => {
+    setAddingLogForDecision(null);
+    resetLogForm();
   };
 
   if (isLoading) {
@@ -280,7 +255,7 @@ export default function Decisions() {
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      status: e.target.value as 'completed' | 'ongoing' | 'archived',
+                      status: e.target.value as DecisionStatus,
                     })
                   }
                 >
@@ -293,7 +268,7 @@ export default function Decisions() {
 
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">Review At</label>
+                <label className="form-label">Review At (optional)</label>
                 <input
                   type="date"
                   className="form-input"
@@ -339,27 +314,23 @@ export default function Decisions() {
           <p>No decisions yet. Create your first decision!</p>
         </div>
       ) : (
-        <div className="list">
+        <div className="journey-list">
           {decisions.map((decision) => (
-            <DecisionCard
+            <JourneyCard
               key={decision.id}
               decision={decision}
-              isExpanded={expandedDecisionId === decision.id}
-              onToggleExpand={() => toggleTasksSection(decision.id)}
-              editingTaskId={editingTaskId}
-              onEditTask={startEditTask}
-              creatingTaskForDecision={creatingTaskForDecision}
-              onCreateTask={() => handleCreateTask(decision.id)}
-              onDeleteTask={handleDeleteTask}
-              onUpdateTask={handleUpdateTask}
-              onCancelTaskForm={cancelTaskForm}
-              taskFormData={taskFormData}
-              setTaskFormData={setTaskFormData}
+              isSelected={selectedDecisionId === decision.id}
+              onSelect={() => setSelectedDecisionId(selectedDecisionId === decision.id ? null : decision.id)}
+              addingLogForDecision={addingLogForDecision}
+              onAddLog={() => handleCreateLog(decision.id)}
+              onCancelLogForm={cancelLogForm}
+              logFormData={logFormData}
+              setLogFormData={setLogFormData}
               handleEdit={handleEdit}
               handleDelete={handleDelete}
-              useTasksForDecision={useTasksForDecision}
-              resetTaskForm={resetTaskForm}
-              setCreatingTaskForDecision={setCreatingTaskForDecision}
+              useLogsForDecision={useLogsForDecision}
+              resetLogForm={resetLogForm}
+              setAddingLogForDecision={setAddingLogForDecision}
             />
           ))}
         </div>
@@ -368,154 +339,228 @@ export default function Decisions() {
   );
 }
 
-// Decision Card Component with Tasks
-interface DecisionCardProps {
+// Journey Card Component with Timeline
+interface JourneyCardProps {
   decision: Decision;
-  isExpanded: boolean;
-  onToggleExpand: () => void;
-  editingTaskId: string | null;
-  onEditTask: (task: Task) => void;
-  creatingTaskForDecision: string | null;
-  onCreateTask: () => void;
-  onDeleteTask: (taskId: string) => void;
-  onUpdateTask: (task: Task) => void;
-  onCancelTaskForm: () => void;
-  taskFormData: { title: string; status: TaskStatus; due_date: string; notes: string };
-  setTaskFormData: React.Dispatch<React.SetStateAction<{ title: string; status: TaskStatus; due_date: string; notes: string }>>;
+  isSelected: boolean;
+  onSelect: () => void;
+  addingLogForDecision: string | null;
+  onAddLog: () => void;
+  onCancelLogForm: () => void;
+  logFormData: { type: LogType; content: string; newStatus: DecisionStatus | '' };
+  setLogFormData: React.Dispatch<React.SetStateAction<{ type: LogType; content: string; newStatus: DecisionStatus | '' }>>;
   handleEdit: (decision: Decision) => void;
   handleDelete: (id: string) => void;
-  useTasksForDecision: (decisionId: string) => any;
-  resetTaskForm: () => void;
-  setCreatingTaskForDecision: (id: string | null) => void;
+  useLogsForDecision: (decisionId: string) => any;
+  resetLogForm: () => void;
+  setAddingLogForDecision: (id: string | null) => void;
 }
 
-function DecisionCard({
+function JourneyCard({
   decision,
-  isExpanded,
-  onToggleExpand,
-  editingTaskId,
-  onEditTask,
-  creatingTaskForDecision,
-  onCreateTask,
-  onDeleteTask,
-  onUpdateTask,
-  onCancelTaskForm,
-  taskFormData,
-  setTaskFormData,
+  isSelected,
+  onSelect,
+  addingLogForDecision,
+  onAddLog,
+  onCancelLogForm,
+  logFormData,
+  setLogFormData,
   handleEdit,
   handleDelete,
-  useTasksForDecision,
-  resetTaskForm,
-  setCreatingTaskForDecision,
-}: DecisionCardProps) {
-  const { data: tasksData, isLoading: tasksLoading } = useTasksForDecision(decision.id);
-  const tasks = tasksData?.data || [];
-  const taskCount = tasks.length;
+  useLogsForDecision,
+  resetLogForm,
+  setAddingLogForDecision,
+}: JourneyCardProps) {
+  const { data: logsData } = useLogsForDecision(decision.id);
+  const logs = logsData?.data || [];
+
+  // Sort logs by date (oldest first)
+  const sortedLogs = [...logs].sort((a, b) => 
+    new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
 
   return (
-    <div className="list-item">
-      <div className="list-item-content">
-        <div className="list-item-title">{decision.title}</div>
-        <div className="list-item-meta">
+    <div className="journey-card">
+      {/* Header */}
+      <div className="journey-header" onClick={onSelect}>
+        <div className="journey-title-section">
+          <h3 className="journey-title">{decision.title}</h3>
           <span className={`status-badge status-${decision.status}`}>
             {decision.status}
           </span>
-          <span>Created: {decision.date}</span>
-          {decision.review_at && <span>Review: {decision.review_at}</span>}
+        </div>
+        <div className="journey-actions">
           <button
-            className="tasks-toggle-btn"
-            onClick={onToggleExpand}
+            className="btn btn-secondary btn-sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleEdit(decision);
+            }}
           >
-            {isExpanded ? '▼' : '▶'} Tasks {taskCount > 0 && `(${taskCount})`}
+            Edit
+          </button>
+          <button
+            className="btn btn-danger btn-sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDelete(decision.id);
+            }}
+          >
+            Delete
           </button>
         </div>
       </div>
-      <div className="list-item-actions">
-        <button
-          className="btn btn-secondary btn-sm"
-          onClick={() => handleEdit(decision)}
-        >
-          Edit
-        </button>
-        <button
-          className="btn btn-danger btn-sm"
-          onClick={() => handleDelete(decision.id)}
-        >
-          Delete
-        </button>
-      </div>
 
-      {/* Tasks Section */}
-      {isExpanded && (
-        <div className="tasks-section">
-          {tasksLoading ? (
-            <div className="loading">Loading tasks...</div>
-          ) : tasks.length === 0 ? (
-            <div className="empty-text">No tasks yet</div>
-          ) : (
-            <div className="tasks-list">
-              {tasks.map((task: Task) => (
-                <TaskItem
-                  key={task.id}
-                  task={task}
-                  isEditing={editingTaskId === task.id}
-                  onEdit={() => onEditTask(task)}
-                  onDelete={() => onDeleteTask(task.id)}
-                  onUpdate={() => onUpdateTask(task)}
-                  onCancel={onCancelTaskForm}
-                  formData={taskFormData}
-                  setFormData={setTaskFormData}
-                />
-              ))}
+      {/* Timeline Preview */}
+      <div className="journey-timeline" onClick={onSelect}>
+        {/* Origin Node */}
+        <div className="timeline-node origin" title={`Decision made: ${decision.date}`}>
+          <span className="node-marker">○</span>
+          <span className="node-label">{decision.date}</span>
+        </div>
+
+        {/* Timeline Path */}
+        <div className="timeline-path">
+          {/* Reflection marker if review_at exists */}
+          {decision.review_at && (
+            <div className="timeline-marker reflection" title={`Review: ${decision.review_at}`}>
+              <span className="marker-icon">🌙</span>
             </div>
           )}
+          
+          {/* Milestone nodes for logs */}
+          {sortedLogs.map((log) => (
+            <MilestoneNode key={log.id} log={log} />
+          ))}
+        </div>
 
-          {/* Add Task Form */}
-          {creatingTaskForDecision === decision.id ? (
-            <div className="task-form">
-              <div className="task-form-row">
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Task title"
-                  value={taskFormData.title}
-                  onChange={(e) => setTaskFormData({ ...taskFormData, title: e.target.value })}
-                  autoFocus
-                />
-                <select
-                  className="form-input"
-                  value={taskFormData.status}
-                  onChange={(e) => setTaskFormData({ ...taskFormData, status: e.target.value as TaskStatus })}
-                >
-                  <option value="pending">Pending</option>
-                  <option value="in_progress">In Progress</option>
-                  <option value="completed">Completed</option>
-                </select>
-                <input
-                  type="date"
-                  className="form-input"
-                  value={taskFormData.due_date}
-                  onChange={(e) => setTaskFormData({ ...taskFormData, due_date: e.target.value })}
-                />
+        {/* Current Position */}
+        <div className={`timeline-node current status-${decision.status}`} title={`Current: ${decision.status}`}>
+          <span className="node-marker">
+            {decision.status === 'ongoing' ? '●' : decision.status === 'completed' ? '○' : '·'}
+          </span>
+          <span className="node-label">{decision.status}</span>
+        </div>
+      </div>
+
+      {/* Expanded Journey View */}
+      {isSelected && (
+        <div className="journey-expanded">
+          {/* Full Timeline with Horizontal Scroll */}
+          <div className="journey-scroll">
+            <div className="journey-scroll-content">
+              {/* Origin */}
+              <div className="timeline-item origin">
+                <div className="timeline-item-marker">
+                  <span className="node-marker">○</span>
+                </div>
+                <div className="timeline-item-content">
+                  <div className="timeline-item-date">{decision.date}</div>
+                  <div className="timeline-item-title">Decision made</div>
+                  <div className="timeline-item-type">origin</div>
+                </div>
               </div>
-              <div className="task-form-actions">
-                <button className="btn btn-primary btn-sm" onClick={onCreateTask}>
-                  Add
+
+              {/* Reflection marker */}
+              {decision.review_at && (
+                <div className="timeline-item reflection">
+                  <div className="timeline-item-connector" />
+                  <div className="timeline-item-marker">
+                    <span className="marker-icon">🌙</span>
+                  </div>
+                  <div className="timeline-item-content">
+                    <div className="timeline-item-date">{decision.review_at}</div>
+                    <div className="timeline-item-title">Reflection point</div>
+                    <div className="timeline-item-type">review</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Logs as milestones */}
+              {sortedLogs.map((log) => (
+                <LogTimelineItem key={log.id} log={log} />
+              ))}
+
+              {/* Current position */}
+              <div className={`timeline-item current status-${decision.status}`}>
+                <div className="timeline-item-connector" />
+                <div className="timeline-item-marker">
+                  <span className="node-marker">
+                    {decision.status === 'ongoing' ? '●' : decision.status === 'completed' ? '○' : '·'}
+                  </span>
+                </div>
+                <div className="timeline-item-content">
+                  <div className="timeline-item-title">Now</div>
+                  <div className="timeline-item-type">{decision.status}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Add Log Form */}
+          {addingLogForDecision === decision.id ? (
+            <div className="log-form">
+              <div className="log-form-row">
+                <select
+                  className="form-input log-type-select"
+                  value={logFormData.type}
+                  onChange={(e) => setLogFormData({ ...logFormData, type: e.target.value as LogType })}
+                >
+                  <option value="note">Note</option>
+                  <option value="reflection">Reflection</option>
+                  <option value="state_change">Status Change</option>
+                </select>
+                
+                {logFormData.type === 'state_change' && (
+                  <select
+                    className="form-input status-select"
+                    value={logFormData.newStatus}
+                    onChange={(e) => setLogFormData({ ...logFormData, newStatus: e.target.value as DecisionStatus | '' })}
+                  >
+                    <option value="">Select new status</option>
+                    <option value="ongoing">Ongoing</option>
+                    <option value="completed">Completed</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                )}
+              </div>
+              
+              <textarea
+                className="form-textarea log-content"
+                placeholder={
+                  logFormData.type === 'note' 
+                    ? 'Write a note about this decision...' 
+                    : logFormData.type === 'reflection'
+                    ? 'Reflect on this decision...'
+                    : 'Add notes about this status change...'
+                }
+                value={logFormData.content}
+                onChange={(e) => setLogFormData({ ...logFormData, content: e.target.value })}
+                rows={3}
+              />
+              
+              <div className="log-form-actions">
+                <button 
+                  className="btn btn-primary" 
+                  onClick={onAddLog}
+                  disabled={logFormData.type === 'state_change' && !logFormData.newStatus && !logFormData.content}
+                >
+                  Add to Journey
                 </button>
-                <button className="btn btn-secondary btn-sm" onClick={onCancelTaskForm}>
+                <button className="btn btn-secondary" onClick={onCancelLogForm}>
                   Cancel
                 </button>
               </div>
             </div>
           ) : (
             <button
-              className="btn btn-secondary btn-sm add-task-btn"
+              className="btn btn-secondary add-log-btn"
               onClick={() => {
-                resetTaskForm();
-                setCreatingTaskForDecision(decision.id);
+                resetLogForm();
+                setAddingLogForDecision(decision.id);
               }}
             >
-              + Add Task
+              + Add to Journey
             </button>
           )}
         </div>
@@ -524,88 +569,66 @@ function DecisionCard({
   );
 }
 
-// Task Item Component
-interface TaskItemProps {
-  task: Task;
-  isEditing: boolean;
-  onEdit: () => void;
-  onDelete: () => void;
-  onUpdate: () => void;
-  onCancel: () => void;
-  formData: { title: string; status: TaskStatus; due_date: string; notes: string };
-  setFormData: React.Dispatch<React.SetStateAction<{ title: string; status: TaskStatus; due_date: string; notes: string }>>;
-}
-
-function TaskItem({
-  task,
-  isEditing,
-  onEdit,
-  onDelete,
-  onUpdate,
-  onCancel,
-  formData,
-  setFormData,
-}: TaskItemProps) {
-  if (isEditing) {
-    return (
-      <div className="task-item task-item-editing">
-        <div className="task-edit-form">
-          <input
-            type="text"
-            className="form-input"
-            value={formData.title}
-            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-            placeholder="Task title"
-          />
-          <select
-            className="form-input"
-            value={formData.status}
-            onChange={(e) => setFormData({ ...formData, status: e.target.value as TaskStatus })}
-          >
-            <option value="pending">Pending</option>
-            <option value="in_progress">In Progress</option>
-            <option value="completed">Completed</option>
-          </select>
-          <input
-            type="date"
-            className="form-input"
-            value={formData.due_date}
-            onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-          />
-          <div className="task-edit-actions">
-            <button className="btn btn-primary btn-sm" onClick={onUpdate}>
-              Save
-            </button>
-            <button className="btn btn-secondary btn-sm" onClick={onCancel}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+// Milestone Node (compact view)
+function MilestoneNode({ log }: { log: DecisionLog }) {
+  const getTypeIcon = () => {
+    switch (log.type) {
+      case 'reflection': return '💭';
+      case 'state_change': return '→';
+      default: return '●';
+    }
+  };
 
   return (
-    <div className="task-item">
-      <div className="task-item-content">
-        <span className={`task-status-indicator status-${task.status}`}>
-          {task.status === 'completed' ? '☑' : task.status === 'in_progress' ? '◐' : '☐'}
-        </span>
-        <span className="task-title">{task.title}</span>
-        {task.due_date && (
-          <span className="task-due-date">due: {task.due_date}</span>
-        )}
-        <span className={`status-badge status-${task.status === 'completed' ? 'completed' : task.status === 'in_progress' ? 'ongoing' : 'pending'}`}>
-          {task.status.replace('_', ' ')}
-        </span>
+    <div className={`timeline-mestone type-${log.type}`} title={`${log.type}: ${log.content.slice(0, 50)}...`}>
+      <span className="node-marker">{getTypeIcon()}</span>
+    </div>
+  );
+}
+
+// Expanded Timeline Item for Logs
+function LogTimelineItem({ log }: { log: DecisionLog }) {
+  const [expanded, setExpanded] = useState(false);
+  
+  const getTypeIcon = () => {
+    switch (log.type) {
+      case 'reflection': return '💭';
+      case 'state_change': return '→';
+      default: return '●';
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const isLongContent = log.content.length > 100;
+
+  return (
+    <div className={`timeline-item type-${log.type}`}>
+      <div className="timeline-item-connector" />
+      <div className="timeline-item-marker">
+        <span className="node-marker">{getTypeIcon()}</span>
       </div>
-      <div className="task-item-actions">
-        <button className="btn btn-secondary btn-sm" onClick={onEdit}>
-          Edit
-        </button>
-        <button className="btn btn-danger btn-sm" onClick={onDelete}>
-          Delete
-        </button>
+      <div className="timeline-item-content" onClick={() => isLongContent && setExpanded(!expanded)}>
+        <div className="timeline-item-date">{formatDate(log.created_at)}</div>
+        <div className={`timeline-item-body ${expanded ? 'expanded' : ''}`}>
+          {isLongContent && !expanded ? (
+            <>
+              {log.content.slice(0, 100)}...
+              <span className="read-more">tap to read more</span>
+            </>
+          ) : (
+            log.content
+          )}
+        </div>
+        <div className="timeline-item-type">{log.type.replace('_', ' ')}</div>
       </div>
     </div>
   );
