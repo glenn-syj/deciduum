@@ -1,11 +1,91 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import * as Select from '@radix-ui/react-select';
+import * as Dialog from '@radix-ui/react-dialog';
 import { memosApi, Memo, decisionsApi, directionsApi } from '../utils/api';
+
+function SelectField({ 
+  label, 
+  value, 
+  onValueChange, 
+  placeholder,
+  options,
+}: { 
+  label: string;
+  value: string;
+  onValueChange: (value: string) => void;
+  placeholder?: string;
+  options: { id: string; title: string }[];
+}) {
+  return (
+    <div className="form-group">
+      <label className="form-label">{label}</label>
+      <Select.Root value={value || 'none'} onValueChange={(v) => onValueChange(v === 'none' ? '' : v)}>
+        <Select.Trigger className="select-trigger">
+          <Select.Value placeholder={placeholder || 'Select...'} />
+          <Select.Icon className="select-icon">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </Select.Icon>
+        </Select.Trigger>
+        <Select.Portal>
+          <Select.Content className="select-content" position="popper" sideOffset={4}>
+            <Select.Viewport className="select-viewport">
+              <Select.Item value="none" className="select-item">
+                <Select.ItemText>{placeholder || 'None'}</Select.ItemText>
+              </Select.Item>
+              {options.map((option) => (
+                <Select.Item key={option.id} value={option.id} className="select-item">
+                  <Select.ItemText>{option.title}</Select.ItemText>
+                </Select.Item>
+              ))}
+            </Select.Viewport>
+          </Select.Content>
+        </Select.Portal>
+      </Select.Root>
+    </div>
+  );
+}
+
+function DeleteDialog({ 
+  open, 
+  onOpenChange, 
+  onConfirm 
+}: { 
+  open: boolean; 
+  onOpenChange: (open: boolean) => void; 
+  onConfirm: () => void;
+}) {
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay" />
+        <Dialog.Content className="dialog-content">
+          <Dialog.Title className="dialog-title">Delete Memo</Dialog.Title>
+          <Dialog.Description className="dialog-description">
+            Are you sure you want to delete this memo? This action cannot be undone.
+          </Dialog.Description>
+          <div className="flex gap-3 justify-end">
+            <Dialog.Close asChild>
+              <button className="btn btn-secondary">Cancel</button>
+            </Dialog.Close>
+            <button className="btn btn-danger" onClick={onConfirm}>
+              Delete
+            </button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
 
 export default function Memos() {
   const queryClient = useQueryClient();
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     content: '',
     date: new Date().toISOString().split('T')[0],
@@ -99,9 +179,16 @@ export default function Memos() {
     setIsCreating(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this memo?')) {
-      deleteMutation.mutate(id);
+  const handleDeleteClick = (id: string) => {
+    setDeletingId(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (deletingId) {
+      deleteMutation.mutate(deletingId);
+      setDeleteDialogOpen(false);
+      setDeletingId(null);
     }
   };
 
@@ -166,41 +253,21 @@ export default function Memos() {
                 />
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Linked Decision</label>
-                <select
-                  className="form-input"
-                  value={formData.linked_decision_id}
-                  onChange={(e) =>
-                    setFormData({ ...formData, linked_decision_id: e.target.value })
-                  }
-                >
-                  <option value="">None</option>
-                  {decisions.map((dec) => (
-                    <option key={dec.id} value={dec.id}>
-                      {dec.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <SelectField
+                label="Linked Decision"
+                value={formData.linked_decision_id}
+                onValueChange={(value) => setFormData({ ...formData, linked_decision_id: value })}
+                placeholder="None"
+                options={decisions.map(d => ({ id: d.id, title: d.title }))}
+              />
 
-              <div className="form-group">
-                <label className="form-label">Linked Direction</label>
-                <select
-                  className="form-input"
-                  value={formData.linked_direction_id}
-                  onChange={(e) =>
-                    setFormData({ ...formData, linked_direction_id: e.target.value })
-                  }
-                >
-                  <option value="">None</option>
-                  {directions.map((dir) => (
-                    <option key={dir.id} value={dir.id}>
-                      {dir.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <SelectField
+                label="Linked Direction"
+                value={formData.linked_direction_id}
+                onValueChange={(value) => setFormData({ ...formData, linked_direction_id: value })}
+                placeholder="None"
+                options={directions.map(d => ({ id: d.id, title: d.title }))}
+              />
             </div>
 
             <div className="form-actions">
@@ -241,7 +308,7 @@ export default function Memos() {
                 </button>
                 <button
                   className="btn btn-danger btn-sm"
-                  onClick={() => handleDelete(memo.id)}
+                  onClick={() => handleDeleteClick(memo.id)}
                 >
                   Delete
                 </button>
@@ -250,6 +317,12 @@ export default function Memos() {
           ))}
         </div>
       )}
+
+      <DeleteDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleDeleteConfirm}
+      />
     </div>
   );
 }
