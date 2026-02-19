@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as Select from '@radix-ui/react-select';
 import * as Dialog from '@radix-ui/react-dialog';
-import { decisionsApi, directionsApi, DecisionLog } from '../utils/api';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { decisionsApi, directionsApi, DecisionLog, memosApi, tasksApi, Memo, Task } from '../utils/api';
 
 type LogType = 'note' | 'reflection' | 'state_change';
 type DecisionStatus = 'completed' | 'ongoing' | 'archived';
@@ -21,6 +22,18 @@ interface Decision {
 interface NewLogData {
   type: LogType;
   content: string;
+}
+
+type TimelineItemType = 'origin' | 'review' | 'log' | 'task' | 'memo';
+
+interface TimelineItem {
+  id: string;
+  type: TimelineItemType;
+  date: string;
+  title: string;
+  content?: string;
+  status?: string;
+  logType?: string;
 }
 
 function StatusSelect({ 
@@ -147,12 +160,21 @@ function DeleteDialog({
   );
 }
 
+const getTypeIcon = (type: string, status?: string, logType?: string): string => {
+  if (type === 'memo') return '📝';
+  if (type === 'task') return status === 'completed' ? '✓' : '☐';
+  if (type === 'log') {
+    if (logType === 'reflection') return '💭';
+    if (logType === 'state_change') return '→';
+  }
+  return '●';
+};
+
 export default function Decisions() {
   const queryClient = useQueryClient();
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedDecisionId, setSelectedDecisionId] = useState<string | null>(null);
-  const [addingLogForDecision, setAddingLogForDecision] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -162,42 +184,6 @@ export default function Decisions() {
     review_at: '',
     direction_id: '',
   });
-
-  const [logFormData, setLogFormData] = useState({
-    type: 'note' as LogType,
-    content: '',
-    newStatus: '' as DecisionStatus | '',
-  });
-
-  const useLogsForDecision = (decisionId: string) => {
-    return useQuery({
-      queryKey: ['logs', decisionId],
-      queryFn: async () => {
-        const response = await decisionsApi.listLogs(decisionId);
-        return response.data;
-      },
-      enabled: !!decisionId,
-    });
-  };
-
-  const createLogMutation = useMutation({
-    mutationFn: ({ decisionId, data }: { decisionId: string; data: NewLogData }) =>
-      decisionsApi.createLog(decisionId, data),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['logs', variables.decisionId] });
-      queryClient.invalidateQueries({ queryKey: ['decisions'] });
-      setAddingLogForDecision(null);
-      resetLogForm();
-    },
-  });
-
-  const resetLogForm = () => {
-    setLogFormData({
-      type: 'note',
-      content: '',
-      newStatus: '',
-    });
-  };
 
   const { data: decisionsData, isLoading } = useQuery({
     queryKey: ['decisions'],
@@ -302,26 +288,6 @@ export default function Decisions() {
     resetForm();
   };
 
-  const handleCreateLog = (decisionId: string) => {
-    const logData: NewLogData = {
-      type: logFormData.type,
-      content: logFormData.content,
-    };
-
-    if (logFormData.type === 'state_change' && logFormData.newStatus) {
-      logData.content = `Status changed to ${logFormData.newStatus}${logData.content ? ': ' + logFormData.content : ''}`;
-      
-      decisionsApi.update(decisionId, { status: logFormData.newStatus as DecisionStatus });
-    }
-
-    createLogMutation.mutate({ decisionId, data: logData });
-  };
-
-  const cancelLogForm = () => {
-    setAddingLogForDecision(null);
-    resetLogForm();
-  };
-
   if (isLoading) {
     return (
       <div className="page">
@@ -335,6 +301,13 @@ export default function Decisions() {
 
   const decisions = decisionsData?.data || [];
   const directions = directionsData?.data || [];
+  const directionMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    directions.forEach(dir => {
+      map[dir.id] = dir.title;
+    });
+    return map;
+  }, [directions]);
 
   return (
     <div className="page">
@@ -429,18 +402,12 @@ export default function Decisions() {
             <JourneyCard
               key={decision.id}
               decision={decision}
+              directionTitle={decision.direction_id ? directionMap[decision.direction_id] : null}
               isSelected={selectedDecisionId === decision.id}
               onSelect={() => setSelectedDecisionId(selectedDecisionId === decision.id ? null : decision.id)}
-              addingLogForDecision={addingLogForDecision}
-              onAddLog={() => handleCreateLog(decision.id)}
-              onCancelLogForm={cancelLogForm}
-              logFormData={logFormData}
-              setLogFormData={setLogFormData}
               handleEdit={handleEdit}
-              handleDelete={(id) => handleDeleteClick(id)}
-              useLogsForDecision={useLogsForDecision}
-              resetLogForm={resetLogForm}
-              setAddingLogForDecision={setAddingLogForDecision}
+              handleDelete={handleDeleteClick}
+              directions={directions}
             />
           ))}
         </div>
@@ -457,70 +424,275 @@ export default function Decisions() {
 
 interface JourneyCardProps {
   decision: Decision;
+  directionTitle: string | null;
   isSelected: boolean;
   onSelect: () => void;
-  addingLogForDecision: string | null;
-  onAddLog: () => void;
-  onCancelLogForm: () => void;
-  logFormData: { type: LogType; content: string; newStatus: DecisionStatus | '' };
-  setLogFormData: React.Dispatch<React.SetStateAction<{ type: LogType; content: string; newStatus: DecisionStatus | '' }>>;
   handleEdit: (decision: Decision) => void;
   handleDelete: (id: string) => void;
-  useLogsForDecision: (decisionId: string) => any;
-  resetLogForm: () => void;
-  setAddingLogForDecision: (id: string | null) => void;
+  directions: { id: string; title: string }[];
 }
 
 function JourneyCard({
   decision,
+  directionTitle,
   isSelected,
   onSelect,
-  addingLogForDecision,
-  onAddLog,
-  onCancelLogForm,
-  logFormData,
-  setLogFormData,
   handleEdit,
   handleDelete,
-  useLogsForDecision,
-  resetLogForm,
-  setAddingLogForDecision,
+  directions: _directions,
 }: JourneyCardProps) {
-  const { data: logsData } = useLogsForDecision(decision.id);
-  const logs = logsData?.data || [];
+  const queryClient = useQueryClient();
+  const [addingLogForDecision, setAddingLogForDecision] = useState(false);
+  const [addingTask, setAddingTask] = useState(false);
+  const [addingMemo, setAddingMemo] = useState(false);
+  const [logFormData, setLogFormData] = useState({
+    type: 'note' as LogType,
+    content: '',
+    newStatus: '' as DecisionStatus | '',
+  });
+  const [taskFormData, setTaskFormData] = useState({ title: '', notes: '' });
+  const [memoFormData, setMemoFormData] = useState({ content: '' });
 
-  const sortedLogs = [...logs].sort((a, b) => 
-    new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  );
+  const { data: logsData } = useQuery({
+    queryKey: ['logs', decision.id],
+    queryFn: async () => {
+      const response = await decisionsApi.listLogs(decision.id);
+      return response.data;
+    },
+    enabled: !!decision.id,
+  });
+  const logs: DecisionLog[] = logsData?.data || [];
+
+  const { data: tasksData } = useQuery<{ data: Task[] }>({
+    queryKey: ['tasks', decision.id],
+    queryFn: async () => {
+      const response = await tasksApi.listByDecision(decision.id);
+      return response.data;
+    },
+    enabled: !!decision.id,
+  });
+
+  const { data: memosData } = useQuery<{ data: Memo[] }>({
+    queryKey: ['memos', decision.id],
+    queryFn: async () => {
+      const response = await memosApi.listByDecision(decision.id);
+      return response.data;
+    },
+    enabled: !!decision.id,
+  });
+
+  const createLogMutation = useMutation({
+    mutationFn: ({ decisionId, data }: { decisionId: string; data: NewLogData }) =>
+      decisionsApi.createLog(decisionId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['logs', variables.decisionId] });
+      queryClient.invalidateQueries({ queryKey: ['decisions'] });
+      setAddingLogForDecision(false);
+      setLogFormData({ type: 'note', content: '', newStatus: '' });
+    },
+  });
+
+  const createTaskMutation = useMutation({
+    mutationFn: (data: { decision_id: string; title: string; notes?: string }) =>
+      tasksApi.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks', decision.id] });
+      setAddingTask(false);
+      setTaskFormData({ title: '', notes: '' });
+    },
+  });
+
+  const createMemoMutation = useMutation({
+    mutationFn: (data: { decision_id: string; content: string }) =>
+      memosApi.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['memos', decision.id] });
+      setAddingMemo(false);
+      setMemoFormData({ content: '' });
+    },
+  });
+
+  const updateDecisionStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: DecisionStatus }) =>
+      decisionsApi.update(id, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['decisions'] });
+    },
+  });
+
+  const timelineItems = useMemo(() => {
+    const items: TimelineItem[] = [];
+    
+    items.push({
+      id: `origin-${decision.id}`,
+      type: 'origin',
+      date: decision.date,
+      title: 'Decision made',
+    });
+    
+    if (decision.review_at) {
+      items.push({
+        id: `review-${decision.id}`,
+        type: 'review',
+        date: decision.review_at,
+        title: 'Reflection point',
+      });
+    }
+    
+    logs.forEach(log => {
+      items.push({
+        id: log.id,
+        type: 'log',
+        date: log.created_at,
+        title: log.type === 'state_change' ? 'Status changed' : log.type.charAt(0).toUpperCase() + log.type.slice(1),
+        content: log.content,
+        logType: log.type,
+      });
+    });
+    
+    (tasksData?.data || []).forEach(task => {
+      items.push({
+        id: task.id,
+        type: 'task',
+        date: task.created_at,
+        title: task.title,
+        content: task.notes || undefined,
+        status: task.status,
+      });
+    });
+    
+    (memosData?.data || []).forEach(memo => {
+      items.push({
+        id: memo.id,
+        type: 'memo',
+        date: memo.created_at,
+        title: 'Memo',
+        content: memo.content,
+      });
+    });
+    
+    return items.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [decision.id, decision.date, decision.review_at, logs, tasksData?.data, memosData?.data]);
+
+  const handleCreateLog = () => {
+    const logData: NewLogData = {
+      type: logFormData.type,
+      content: logFormData.content,
+    };
+
+    if (logFormData.type === 'state_change' && logFormData.newStatus) {
+      logData.content = `Status changed to ${logFormData.newStatus}${logData.content ? ': ' + logFormData.content : ''}`;
+      updateDecisionStatusMutation.mutate({ id: decision.id, status: logFormData.newStatus as DecisionStatus });
+    }
+
+    createLogMutation.mutate({ decisionId: decision.id, data: logData });
+  };
+
+  const handleCreateTask = () => {
+    if (!taskFormData.title.trim()) return;
+    createTaskMutation.mutate({
+      decision_id: decision.id,
+      title: taskFormData.title,
+      notes: taskFormData.notes || undefined,
+    });
+  };
+
+  const handleCreateMemo = () => {
+    if (!memoFormData.content.trim()) return;
+    createMemoMutation.mutate({
+      decision_id: decision.id,
+      content: memoFormData.content,
+    });
+  };
+
+  const handleStatusChange = (newStatus: DecisionStatus) => {
+    updateDecisionStatusMutation.mutate({ id: decision.id, status: newStatus });
+  };
+
+  const cancelLogForm = () => {
+    setAddingLogForDecision(false);
+    setLogFormData({ type: 'note', content: '', newStatus: '' });
+  };
+
+  const cancelTaskForm = () => {
+    setAddingTask(false);
+    setTaskFormData({ title: '', notes: '' });
+  };
+
+  const cancelMemoForm = () => {
+    setAddingMemo(false);
+    setMemoFormData({ content: '' });
+  };
 
   return (
     <div className="journey-card">
       <div className="journey-header" onClick={onSelect}>
         <div className="journey-title-section">
           <h3 className="journey-title">{decision.title}</h3>
-          <span className={`status-badge status-${decision.status}`}>
-            {decision.status}
-          </span>
+          <div className="journey-meta">
+            <span className={`status-badge status-${decision.status}`}>
+              {decision.status}
+            </span>
+            {directionTitle && (
+              <span className="direction-badge">{directionTitle}</span>
+            )}
+          </div>
         </div>
         <div className="journey-actions">
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleEdit(decision);
-            }}
-          >
-            Edit
-          </button>
-          <button
-            className="btn btn-danger btn-sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete(decision.id);
-            }}
-          >
-            Delete
-          </button>
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Actions
+              </button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content className="dropdown-content" sideOffset={5}>
+                <DropdownMenu.Item 
+                  className="dropdown-item"
+                  onSelect={() => handleEdit(decision)}
+                >
+                  Edit Decision
+                </DropdownMenu.Item>
+                <DropdownMenu.Sub>
+                  <DropdownMenu.SubTrigger className="dropdown-item">
+                    Change Status
+                  </DropdownMenu.SubTrigger>
+                  <DropdownMenu.Portal>
+                    <DropdownMenu.SubContent className="dropdown-content">
+                      <DropdownMenu.Item 
+                        className="dropdown-item"
+                        onSelect={() => handleStatusChange('ongoing')}
+                      >
+                        Ongoing
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Item 
+                        className="dropdown-item"
+                        onSelect={() => handleStatusChange('completed')}
+                      >
+                        Completed
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Item 
+                        className="dropdown-item"
+                        onSelect={() => handleStatusChange('archived')}
+                      >
+                        Archived
+                      </DropdownMenu.Item>
+                    </DropdownMenu.SubContent>
+                  </DropdownMenu.Portal>
+                </DropdownMenu.Sub>
+                <DropdownMenu.Separator className="dropdown-separator" />
+                <DropdownMenu.Item 
+                  className="dropdown-item danger"
+                  onSelect={() => handleDelete(decision.id)}
+                >
+                  Delete
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
         </div>
       </div>
 
@@ -537,8 +709,8 @@ function JourneyCard({
             </div>
           )}
           
-          {sortedLogs.map((log) => (
-            <MilestoneNode key={log.id} log={log} />
+          {timelineItems.filter(item => item.type !== 'origin' && item.type !== 'review').map((item) => (
+            <MilestoneNode key={item.id} item={item} />
           ))}
         </div>
 
@@ -554,34 +726,34 @@ function JourneyCard({
         <div className="journey-expanded">
           <div className="journey-scroll">
             <div className="journey-scroll-content">
-              <div className="timeline-item origin">
-                <div className="timeline-item-marker">
-                  <span className="node-marker">○</span>
-                </div>
-                <div className="timeline-item-content">
-                  <div className="timeline-item-date">{decision.date}</div>
-                  <div className="timeline-item-title">Decision made</div>
-                  <div className="timeline-item-type">origin</div>
-                </div>
-              </div>
-
-              {decision.review_at && (
-                <div className="timeline-item reflection">
-                  <div className="timeline-item-connector" />
+              {timelineItems.filter(item => item.type === 'origin' || item.type === 'review').map((item) => (
+                <div key={item.id} className={`timeline-item ${item.type}`}>
                   <div className="timeline-item-marker">
-                    <span className="marker-icon">🌙</span>
+                    {item.type === 'origin' ? (
+                      <span className="node-marker">○</span>
+                    ) : (
+                      <span className="marker-icon">🌙</span>
+                    )}
                   </div>
                   <div className="timeline-item-content">
-                    <div className="timeline-item-date">{decision.review_at}</div>
-                    <div className="timeline-item-title">Reflection point</div>
-                    <div className="timeline-item-type">review</div>
+                    <div className="timeline-item-date">{item.date}</div>
+                    <div className="timeline-item-title">{item.title}</div>
+                    <div className="timeline-item-type">{item.type}</div>
                   </div>
                 </div>
-              )}
-
-              {sortedLogs.map((log) => (
-                <LogTimelineItem key={log.id} log={log} />
               ))}
+
+              {timelineItems.filter(item => item.type === 'log' || item.type === 'task' || item.type === 'memo').map((item, index, arr) => {
+                const prevItem = index > 0 ? arr[index - 1] : null;
+                const needsConnector = !prevItem || prevItem.type === 'origin' || prevItem.type === 'review';
+                return (
+                  <TimelineItemComponent 
+                    key={item.id} 
+                    item={item} 
+                    needsConnector={needsConnector}
+                  />
+                );
+              })}
 
               <div className={`timeline-item current status-${decision.status}`}>
                 <div className="timeline-item-connector" />
@@ -598,7 +770,7 @@ function JourneyCard({
             </div>
           </div>
 
-          {addingLogForDecision === decision.id ? (
+          {addingLogForDecision ? (
             <div className="log-form">
               <div className="log-form-row">
                 <LogTypeSelect
@@ -633,26 +805,88 @@ function JourneyCard({
               <div className="log-form-actions">
                 <button 
                   className="btn btn-primary" 
-                  onClick={onAddLog}
+                  onClick={handleCreateLog}
                   disabled={logFormData.type === 'state_change' && !logFormData.newStatus && !logFormData.content}
                 >
                   Add to Journey
                 </button>
-                <button className="btn btn-secondary" onClick={onCancelLogForm}>
+                <button className="btn btn-secondary" onClick={cancelLogForm}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : addingTask ? (
+            <div className="log-form">
+              <input
+                type="text"
+                className="form-input"
+                placeholder="Task title..."
+                value={taskFormData.title}
+                onChange={(e) => setTaskFormData({ ...taskFormData, title: e.target.value })}
+              />
+              <textarea
+                className="form-textarea"
+                placeholder="Notes (optional)..."
+                value={taskFormData.notes}
+                onChange={(e) => setTaskFormData({ ...taskFormData, notes: e.target.value })}
+                rows={2}
+              />
+              <div className="log-form-actions">
+                <button 
+                  className="btn btn-primary" 
+                  onClick={handleCreateTask}
+                  disabled={!taskFormData.title.trim()}
+                >
+                  Add Task
+                </button>
+                <button className="btn btn-secondary" onClick={cancelTaskForm}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : addingMemo ? (
+            <div className="log-form">
+              <textarea
+                className="form-textarea"
+                placeholder="Write your memo..."
+                value={memoFormData.content}
+                onChange={(e) => setMemoFormData({ ...memoFormData, content: e.target.value })}
+                rows={3}
+              />
+              <div className="log-form-actions">
+                <button 
+                  className="btn btn-primary" 
+                  onClick={handleCreateMemo}
+                  disabled={!memoFormData.content.trim()}
+                >
+                  Add Memo
+                </button>
+                <button className="btn btn-secondary" onClick={cancelMemoForm}>
                   Cancel
                 </button>
               </div>
             </div>
           ) : (
-            <button
-              className="btn btn-secondary add-log-btn"
-              onClick={() => {
-                resetLogForm();
-                setAddingLogForDecision(decision.id);
-              }}
-            >
-              + Add to Journey
-            </button>
+            <div className="add-actions-row">
+              <button
+                className="btn btn-secondary add-log-btn"
+                onClick={() => setAddingLogForDecision(true)}
+              >
+                + Add Log
+              </button>
+              <button
+                className="btn btn-secondary add-log-btn"
+                onClick={() => setAddingTask(true)}
+              >
+                + Add Task
+              </button>
+              <button
+                className="btn btn-secondary add-log-btn"
+                onClick={() => setAddingMemo(true)}
+              >
+                + Add Memo
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -698,32 +932,26 @@ function LogTypeSelect({
   );
 }
 
-function MilestoneNode({ log }: { log: DecisionLog }) {
-  const getTypeIcon = () => {
-    switch (log.type) {
-      case 'reflection': return '💭';
-      case 'state_change': return '→';
-      default: return '●';
-    }
-  };
+function MilestoneNode({ item }: { item: TimelineItem }) {
+  const icon = useMemo(
+    () => getTypeIcon(item.type, item.status, item.logType),
+    [item.type, item.status, item.logType]
+  );
 
   return (
-    <div className={`timeline-mestone type-${log.type}`} title={`${log.type}: ${log.content.slice(0, 50)}...`}>
-      <span className="node-marker">{getTypeIcon()}</span>
+    <div className={`timeline-mestone type-${item.type}`} title={`${item.title}: ${item.content?.slice(0, 50) || ''}...`}>
+      <span className="node-marker">{icon}</span>
     </div>
   );
 }
 
-function LogTimelineItem({ log }: { log: DecisionLog }) {
+function TimelineItemComponent({ item, needsConnector }: { item: TimelineItem; needsConnector?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   
-  const getTypeIcon = () => {
-    switch (log.type) {
-      case 'reflection': return '💭';
-      case 'state_change': return '→';
-      default: return '●';
-    }
-  };
+  const icon = useMemo(
+    () => getTypeIcon(item.type, item.status, item.logType),
+    [item.type, item.status, item.logType]
+  );
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -735,27 +963,30 @@ function LogTimelineItem({ log }: { log: DecisionLog }) {
     });
   };
 
-  const isLongContent = log.content.length > 100;
+  const isLongContent = item.content ? item.content.length > 100 : false;
 
   return (
-    <div className={`timeline-item type-${log.type}`}>
-      <div className="timeline-item-connector" />
+    <div className={`timeline-item type-${item.type}`}>
+      {needsConnector && <div className="timeline-item-connector" />}
       <div className="timeline-item-marker">
-        <span className="node-marker">{getTypeIcon()}</span>
+        <span className="node-marker">{icon}</span>
       </div>
       <div className="timeline-item-content" onClick={() => isLongContent && setExpanded(!expanded)}>
-        <div className="timeline-item-date">{formatDate(log.created_at)}</div>
-        <div className={`timeline-item-body ${expanded ? 'expanded' : ''}`}>
-          {isLongContent && !expanded ? (
-            <>
-              {log.content.slice(0, 100)}...
-              <span className="read-more">tap to read more</span>
-            </>
-          ) : (
-            log.content
-          )}
-        </div>
-        <div className="timeline-item-type">{log.type.replace('_', ' ')}</div>
+        <div className="timeline-item-date">{formatDate(item.date)}</div>
+        <div className="timeline-item-title">{item.title}</div>
+        {item.content && (
+          <div className={`timeline-item-body ${expanded ? 'expanded' : ''}`}>
+            {isLongContent && !expanded ? (
+              <>
+                {item.content.slice(0, 100)}...
+                <span className="read-more">tap to read more</span>
+              </>
+            ) : (
+              item.content
+            )}
+          </div>
+        )}
+        <div className="timeline-item-type">{item.type}</div>
       </div>
     </div>
   );
