@@ -85,6 +85,8 @@ DecisionLog {
 - Logs can be created and read, but NOT updated or deleted
 - Preserves the complete history of decision evolution
 
+**Journey Note:** DecisionLogs are not mere metadata — they are the *steps* of a decision's journey. The append-only nature ensures the journey can never be rewritten. This preserves the authenticity only extend forward, of the decision's evolution.
+
 ---
 
 ### 2.3 Memo
@@ -153,24 +155,94 @@ Primary interaction surface displaying:
 - Today's decisions (date == today)
 - Today's memos (date == today)
 
-### 4.2 Calendar View
+### 4.2 Journey View
 
-- Displays entries by date
-- Shows Decisions and Memos based on their `date`
-- Optional visual indicator if `review_at` exists
+> The Decision Journey is Deciduum's signature interaction — a horizontal timeline that visualizes each decision's evolution over time. This is not a traditional calendar, but a narrative experience.
+
+#### Core Concept
+
+**Each decision has its own journey.** When a decision is created, its journey begins. Every DecisionLog added extends the journey forward. The journey *is* the decision's history — always present, always traceable.
+
+```
+Decision created                          Today
+     ○────────────────────●─────────────────────○
+     Made it          Reflection        Current position
+     (origin)         (milestone)       (status)
+```
+
+#### Journey Components
+
+| Component | Description |
+|-----------|-------------|
+| **Origin (left)** | The `date` when the decision was first made |
+| **Milestones** | Each DecisionLog as a node on the path |
+| **Current position (right)** | Where the decision stands now (ongoing/completed/archived) |
+| **Reflection marker** | If `review_at` exists, shown as a gentle contemplative point |
+
+#### Journey Entry Points
+
+- **Current Journeys**: List of all `ongoing` decisions — journeys still in progress
+- **Past Journeys**: List of `completed` and `archived` decisions — concluded journeys
+- **From Today View**: Tap any decision to enter its journey
+
+#### Journey Interactions
+
+- **Navigate**: Horizontal scroll through time on the decision's timeline
+- **Expand nodes**: Tap any milestone to read the full DecisionLog content
+- **Add to journey**: Create new DecisionLogs (note, reflection, state_change) — extends the journey forward
+- **View status**: Status is position on the timeline — no urgency, just information
+
+#### Philosophy
+
+- No global timeline — each decision tells its own story
+- No "overdue" — each journey has its own pace
+- Reflections are built-in — you literally travel through them
+- Append-only visualized — the journey only grows forward, never rewrites
+
+### 4.3 Calendar View (Overview)
+
+A lightweight date index for navigation — not the primary experience:
+- Displays decisions and memos grouped by date
+- Tap any date to see entries from that day
+- Tap any entry to enter its Journey View
 - Optional Direction filter
+- No urgency indicators — just an index
 
-### 4.3 Memo View
+### 4.4 Memo View
 
 Chronological list of all memos with:
 - Content
 - Date
 - Optional link to Decision or Direction
 
-### 4.4 Directions View
+### 4.5 Directions View
 
 - Displays list of Directions with pagination
 - Selecting a Direction shows associated Decisions and Linked Memos
+
+---
+
+### 4.6 Navigation Structure
+
+The primary navigation flow:
+
+```
+Home (Today View)
+│
+├── Current Journeys → [Select decision] → Journey View
+│       │
+│       └── Quick add: Create new decision → Journey begins
+│
+├── Past Journeys → [Select decision] → Journey View
+│
+├── Calendar (Overview Index) → [Select date] → [Select entry] → Journey View
+│
+├── Memos → Chronological memo list
+│
+└── Directions → Direction groupings (optional context)
+```
+
+**Key principle**: Enter a decision → Enter its journey. The Journey View is the primary way to engage with any decision.
 
 ---
 
@@ -452,6 +524,11 @@ All API errors follow a consistent JSON structure:
 - No gamification
 - No automatic productivity pressure
 - No enforced goal system
+- No traditional productivity calendar
+- No global timeline aggregating all decisions
+- No urgency indicators (overdue, due soon, etc.)
+- No productivity metrics or completion statistics
+- No scheduling or drag-to-reschedule interactions
 
 ---
 
@@ -475,6 +552,6 @@ This enables:
 
 ## 12. Document Version
 
-- **Version:** 1.0.0
-- **Last Updated:** 2026-02-17
-- **Source Documents:** backbone.md, api-spec.md, database-schema.md, error-handling.md, implementation-rules.md
+- **Version:** 1.1.0
+- **Last Updated:** 2026-02-19
+- **Changes:** Replaced Calendar View with Decision Journey — per-decision horizontal timeline as the signature interaction model
