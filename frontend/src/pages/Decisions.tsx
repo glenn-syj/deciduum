@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import * as Select from '@radix-ui/react-select';
+import * as Dialog from '@radix-ui/react-dialog';
 import { decisionsApi, directionsApi, DecisionLog } from '../utils/api';
 
 type LogType = 'note' | 'reflection' | 'state_change';
@@ -21,12 +23,138 @@ interface NewLogData {
   content: string;
 }
 
+function StatusSelect({ 
+  value, 
+  onValueChange,
+  className = '' 
+}: { 
+  value: string; 
+  onValueChange: (value: string) => void;
+  className?: string;
+}) {
+  return (
+    <Select.Root value={value} onValueChange={onValueChange}>
+      <Select.Trigger className={`select-trigger ${className}`}>
+        <Select.Value />
+        <Select.Icon className="select-icon">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </Select.Icon>
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Content className="select-content" position="popper" sideOffset={4}>
+          <Select.Viewport className="select-viewport">
+            <Select.Item value="ongoing" className="select-item">
+              <Select.ItemText>Ongoing</Select.ItemText>
+              <Select.ItemIndicator className="select-item-indicator">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M2 6L5 9L10 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </Select.ItemIndicator>
+            </Select.Item>
+            <Select.Item value="completed" className="select-item">
+              <Select.ItemText>Completed</Select.ItemText>
+              <Select.ItemIndicator className="select-item-indicator">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M2 6L5 9L10 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </Select.ItemIndicator>
+            </Select.Item>
+            <Select.Item value="archived" className="select-item">
+              <Select.ItemText>Archived</Select.ItemText>
+              <Select.ItemIndicator className="select-item-indicator">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M2 6L5 9L10 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </Select.ItemIndicator>
+            </Select.Item>
+          </Select.Viewport>
+        </Select.Content>
+      </Select.Portal>
+    </Select.Root>
+  );
+}
+
+function DirectionSelect({ 
+  value, 
+  onValueChange,
+  directions,
+  className = '' 
+}: { 
+  value: string; 
+  onValueChange: (value: string) => void;
+  directions: { id: string; title: string }[];
+  className?: string;
+}) {
+  return (
+    <Select.Root value={value || 'none'} onValueChange={(v) => onValueChange(v === 'none' ? '' : v)}>
+      <Select.Trigger className={`select-trigger ${className}`}>
+        <Select.Value placeholder="Select direction..." />
+        <Select.Icon className="select-icon">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </Select.Icon>
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Content className="select-content" position="popper" sideOffset={4}>
+          <Select.Viewport className="select-viewport">
+            <Select.Item value="none" className="select-item">
+              <Select.ItemText>None</Select.ItemText>
+            </Select.Item>
+            {directions.map((dir) => (
+              <Select.Item key={dir.id} value={dir.id} className="select-item">
+                <Select.ItemText>{dir.title}</Select.ItemText>
+              </Select.Item>
+            ))}
+          </Select.Viewport>
+        </Select.Content>
+      </Select.Portal>
+    </Select.Root>
+  );
+}
+
+function DeleteDialog({ 
+  open, 
+  onOpenChange, 
+  onConfirm 
+}: { 
+  open: boolean; 
+  onOpenChange: (open: boolean) => void; 
+  onConfirm: () => void;
+}) {
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay" />
+        <Dialog.Content className="dialog-content">
+          <Dialog.Title className="dialog-title">Delete Decision</Dialog.Title>
+          <Dialog.Description className="dialog-description">
+            Are you sure you want to delete this decision? This action cannot be undone.
+          </Dialog.Description>
+          <div className="flex gap-3 justify-end">
+            <Dialog.Close asChild>
+              <button className="btn btn-secondary">Cancel</button>
+            </Dialog.Close>
+            <button className="btn btn-danger" onClick={onConfirm}>
+              Delete
+            </button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
 export default function Decisions() {
   const queryClient = useQueryClient();
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedDecisionId, setSelectedDecisionId] = useState<string | null>(null);
   const [addingLogForDecision, setAddingLogForDecision] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     date: new Date().toISOString().split('T')[0],
@@ -35,14 +163,12 @@ export default function Decisions() {
     direction_id: '',
   });
 
-  // Log form state
   const [logFormData, setLogFormData] = useState({
     type: 'note' as LogType,
     content: '',
     newStatus: '' as DecisionStatus | '',
   });
 
-  // Fetch logs for a specific decision
   const useLogsForDecision = (decisionId: string) => {
     return useQuery({
       queryKey: ['logs', decisionId],
@@ -91,13 +217,12 @@ export default function Decisions() {
 
   const createMutation = useMutation({
     mutationFn: (data: Partial<Decision>) => decisionsApi.create(data),
-    onSuccess: (data) => {
+    onSuccess: (response: any) => {
       queryClient.invalidateQueries({ queryKey: ['decisions'] });
       setIsCreating(false);
       resetForm();
-      // Auto-expand the newly created decision's journey
-      if (data.data?.id) {
-        setSelectedDecisionId(data.data.id);
+      if (response.data?.id) {
+        setSelectedDecisionId(response.data.id);
       }
     },
   });
@@ -158,9 +283,16 @@ export default function Decisions() {
     setIsCreating(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this decision?')) {
-      deleteMutation.mutate(id);
+  const handleDeleteClick = (id: string) => {
+    setDeletingId(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (deletingId) {
+      deleteMutation.mutate(deletingId);
+      setDeleteDialogOpen(false);
+      setDeletingId(null);
     }
   };
 
@@ -170,18 +302,15 @@ export default function Decisions() {
     resetForm();
   };
 
-  // Log handlers
   const handleCreateLog = (decisionId: string) => {
     const logData: NewLogData = {
       type: logFormData.type,
       content: logFormData.content,
     };
 
-    // If state_change and new status provided, append to content
     if (logFormData.type === 'state_change' && logFormData.newStatus) {
-      logData.content = `Status changed to ${logFormData.newStatus}${logData.content ? ': ' + logData.content : ''}`;
+      logData.content = `Status changed to ${logFormData.newStatus}${logData.content ? ': ' + logFormData.content : ''}`;
       
-      // Also update the decision status
       decisionsApi.update(decisionId, { status: logFormData.newStatus as DecisionStatus });
     }
 
@@ -249,20 +378,10 @@ export default function Decisions() {
 
               <div className="form-group">
                 <label className="form-label">Status</label>
-                <select
-                  className="form-input"
+                <StatusSelect
                   value={formData.status}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      status: e.target.value as DecisionStatus,
-                    })
-                  }
-                >
-                  <option value="ongoing">Ongoing</option>
-                  <option value="completed">Completed</option>
-                  <option value="archived">Archived</option>
-                </select>
+                  onValueChange={(value) => setFormData({ ...formData, status: value as DecisionStatus })}
+                />
               </div>
             </div>
 
@@ -279,20 +398,11 @@ export default function Decisions() {
 
               <div className="form-group">
                 <label className="form-label">Direction</label>
-                <select
-                  className="form-input"
+                <DirectionSelect
                   value={formData.direction_id}
-                  onChange={(e) =>
-                    setFormData({ ...formData, direction_id: e.target.value })
-                  }
-                >
-                  <option value="">None</option>
-                  {directions.map((dir) => (
-                    <option key={dir.id} value={dir.id}>
-                      {dir.title}
-                    </option>
-                  ))}
-                </select>
+                  onValueChange={(value) => setFormData({ ...formData, direction_id: value })}
+                  directions={directions}
+                />
               </div>
             </div>
 
@@ -327,7 +437,7 @@ export default function Decisions() {
               logFormData={logFormData}
               setLogFormData={setLogFormData}
               handleEdit={handleEdit}
-              handleDelete={handleDelete}
+              handleDelete={(id) => handleDeleteClick(id)}
               useLogsForDecision={useLogsForDecision}
               resetLogForm={resetLogForm}
               setAddingLogForDecision={setAddingLogForDecision}
@@ -335,11 +445,16 @@ export default function Decisions() {
           ))}
         </div>
       )}
+
+      <DeleteDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleDeleteConfirm}
+      />
     </div>
   );
 }
 
-// Journey Card Component with Timeline
 interface JourneyCardProps {
   decision: Decision;
   isSelected: boolean;
@@ -374,14 +489,12 @@ function JourneyCard({
   const { data: logsData } = useLogsForDecision(decision.id);
   const logs = logsData?.data || [];
 
-  // Sort logs by date (oldest first)
   const sortedLogs = [...logs].sort((a, b) => 
     new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   );
 
   return (
     <div className="journey-card">
-      {/* Header */}
       <div className="journey-header" onClick={onSelect}>
         <div className="journey-title-section">
           <h3 className="journey-title">{decision.title}</h3>
@@ -411,30 +524,24 @@ function JourneyCard({
         </div>
       </div>
 
-      {/* Timeline Preview */}
       <div className="journey-timeline" onClick={onSelect}>
-        {/* Origin Node */}
         <div className="timeline-node origin" title={`Decision made: ${decision.date}`}>
           <span className="node-marker">○</span>
           <span className="node-label">{decision.date}</span>
         </div>
 
-        {/* Timeline Path */}
         <div className="timeline-path">
-          {/* Reflection marker if review_at exists */}
           {decision.review_at && (
             <div className="timeline-marker reflection" title={`Review: ${decision.review_at}`}>
               <span className="marker-icon">🌙</span>
             </div>
           )}
           
-          {/* Milestone nodes for logs */}
           {sortedLogs.map((log) => (
             <MilestoneNode key={log.id} log={log} />
           ))}
         </div>
 
-        {/* Current Position */}
         <div className={`timeline-node current status-${decision.status}`} title={`Current: ${decision.status}`}>
           <span className="node-marker">
             {decision.status === 'ongoing' ? '●' : decision.status === 'completed' ? '○' : '·'}
@@ -443,13 +550,10 @@ function JourneyCard({
         </div>
       </div>
 
-      {/* Expanded Journey View */}
       {isSelected && (
         <div className="journey-expanded">
-          {/* Full Timeline with Horizontal Scroll */}
           <div className="journey-scroll">
             <div className="journey-scroll-content">
-              {/* Origin */}
               <div className="timeline-item origin">
                 <div className="timeline-item-marker">
                   <span className="node-marker">○</span>
@@ -461,7 +565,6 @@ function JourneyCard({
                 </div>
               </div>
 
-              {/* Reflection marker */}
               {decision.review_at && (
                 <div className="timeline-item reflection">
                   <div className="timeline-item-connector" />
@@ -476,12 +579,10 @@ function JourneyCard({
                 </div>
               )}
 
-              {/* Logs as milestones */}
               {sortedLogs.map((log) => (
                 <LogTimelineItem key={log.id} log={log} />
               ))}
 
-              {/* Current position */}
               <div className={`timeline-item current status-${decision.status}`}>
                 <div className="timeline-item-connector" />
                 <div className="timeline-item-marker">
@@ -497,31 +598,21 @@ function JourneyCard({
             </div>
           </div>
 
-          {/* Add Log Form */}
           {addingLogForDecision === decision.id ? (
             <div className="log-form">
               <div className="log-form-row">
-                <select
-                  className="form-input log-type-select"
+                <LogTypeSelect
                   value={logFormData.type}
-                  onChange={(e) => setLogFormData({ ...logFormData, type: e.target.value as LogType })}
-                >
-                  <option value="note">Note</option>
-                  <option value="reflection">Reflection</option>
-                  <option value="state_change">Status Change</option>
-                </select>
+                  onValueChange={(value) => setLogFormData({ ...logFormData, type: value as LogType })}
+                  className="log-type-select"
+                />
                 
                 {logFormData.type === 'state_change' && (
-                  <select
-                    className="form-input status-select"
-                    value={logFormData.newStatus}
-                    onChange={(e) => setLogFormData({ ...logFormData, newStatus: e.target.value as DecisionStatus | '' })}
-                  >
-                    <option value="">Select new status</option>
-                    <option value="ongoing">Ongoing</option>
-                    <option value="completed">Completed</option>
-                    <option value="archived">Archived</option>
-                  </select>
+                  <StatusSelect
+                    value={logFormData.newStatus as string}
+                    onValueChange={(value) => setLogFormData({ ...logFormData, newStatus: value as DecisionStatus | '' })}
+                    className="status-select"
+                  />
                 )}
               </div>
               
@@ -569,7 +660,44 @@ function JourneyCard({
   );
 }
 
-// Milestone Node (compact view)
+function LogTypeSelect({
+  value,
+  onValueChange,
+  className = ''
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  className?: string;
+}) {
+  return (
+    <Select.Root value={value} onValueChange={onValueChange}>
+      <Select.Trigger className={`select-trigger ${className}`}>
+        <Select.Value />
+        <Select.Icon className="select-icon">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </Select.Icon>
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Content className="select-content" position="popper" sideOffset={4}>
+          <Select.Viewport className="select-viewport">
+            <Select.Item value="note" className="select-item">
+              <Select.ItemText>Note</Select.ItemText>
+            </Select.Item>
+            <Select.Item value="reflection" className="select-item">
+              <Select.ItemText>Reflection</Select.ItemText>
+            </Select.Item>
+            <Select.Item value="state_change" className="select-item">
+              <Select.ItemText>Status Change</Select.ItemText>
+            </Select.Item>
+          </Select.Viewport>
+        </Select.Content>
+      </Select.Portal>
+    </Select.Root>
+  );
+}
+
 function MilestoneNode({ log }: { log: DecisionLog }) {
   const getTypeIcon = () => {
     switch (log.type) {
@@ -586,7 +714,6 @@ function MilestoneNode({ log }: { log: DecisionLog }) {
   );
 }
 
-// Expanded Timeline Item for Logs
 function LogTimelineItem({ log }: { log: DecisionLog }) {
   const [expanded, setExpanded] = useState(false);
   
