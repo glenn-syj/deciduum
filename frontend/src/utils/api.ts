@@ -39,6 +39,7 @@ export interface DecisionLog {
   decision_id: string;
   type: 'note' | 'reflection' | 'state_change';
   content: string;
+  source: 'human' | 'system';
   created_at: string;
 }
 

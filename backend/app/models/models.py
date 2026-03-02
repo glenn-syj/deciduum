@@ -71,9 +71,14 @@ class DecisionLog(Base):
         String(20), nullable=False
     )  # note/reflection/state_change
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[str] = mapped_column(
+        String(10), nullable=False, default="human"
+    )  # human/system
     created_at: Mapped[str] = mapped_column(String(36), default=utcnow_string)
 
     decision: Mapped["Decision"] = relationship("Decision", back_populates="logs")
+
+    __table_args__ = (Index("ix_decision_logs_source", "source"),)
 
 
 class Memo(Base):
