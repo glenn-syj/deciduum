@@ -121,7 +121,7 @@ export const directionsApi = {
 };
 
 export const todayApi = {
-  get: (date?: string) => api.get<TodayResponse>('/today', { params: { date } }),
+  get: (date?: string) => api.get<{ data: TodayResponse }>('/today', { params: { date } }),
 };
 
 export const tasksApi = {

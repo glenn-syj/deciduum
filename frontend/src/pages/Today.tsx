@@ -32,7 +32,7 @@ export default function Today() {
     queryKey: ['today'],
     queryFn: async () => {
       const response = await todayApi.get();
-      return response.data;
+      return response.data.data;
     },
   });
 
