@@ -4,6 +4,7 @@ import * as Select from '@radix-ui/react-select';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { decisionsApi, directionsApi, DecisionLog, memosApi, tasksApi, Memo, Task } from '../utils/api';
+import Timeline from '../components/Timeline';
 
 type LogType = 'note' | 'reflection' | 'state_change';
 type DecisionStatus = 'completed' | 'ongoing' | 'archived';
@@ -160,16 +161,6 @@ function DeleteDialog({
   );
 }
 
-const getTypeIcon = (type: string, status?: string, logType?: string): string => {
-  if (type === 'memo') return '📝';
-  if (type === 'task') return status === 'completed' ? '✓' : '☐';
-  if (type === 'log') {
-    if (logType === 'reflection') return '💭';
-    if (logType === 'state_change') return '→';
-  }
-  return '●';
-};
-
 export default function Decisions() {
   const queryClient = useQueryClient();
   const [isCreating, setIsCreating] = useState(false);
@@ -200,6 +191,15 @@ export default function Decisions() {
       return response.data;
     },
   });
+
+  const directions = directionsData?.data || [];
+  const directionMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    directions.forEach(dir => {
+      map[dir.id] = dir.title;
+    });
+    return map;
+  }, [directions]);
 
   const createMutation = useMutation({
     mutationFn: (data: Partial<Decision>) => decisionsApi.create(data),
@@ -300,14 +300,6 @@ export default function Decisions() {
   }
 
   const decisions = decisionsData?.data || [];
-  const directions = directionsData?.data || [];
-  const directionMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    directions.forEach(dir => {
-      map[dir.id] = dir.title;
-    });
-    return map;
-  }, [directions]);
 
   return (
     <div className="page">
@@ -448,7 +440,6 @@ function JourneyCard({
   const [logFormData, setLogFormData] = useState({
     type: 'note' as LogType,
     content: '',
-    newStatus: '' as DecisionStatus | '',
   });
   const [taskFormData, setTaskFormData] = useState({ title: '', notes: '' });
   const [memoFormData, setMemoFormData] = useState({ content: '' });
@@ -479,45 +470,6 @@ function JourneyCard({
       return response.data;
     },
     enabled: !!decision.id,
-  });
-
-  const createLogMutation = useMutation({
-    mutationFn: ({ decisionId, data }: { decisionId: string; data: NewLogData }) =>
-      decisionsApi.createLog(decisionId, data),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['logs', variables.decisionId] });
-      queryClient.invalidateQueries({ queryKey: ['decisions'] });
-      setAddingLogForDecision(false);
-      setLogFormData({ type: 'note', content: '', newStatus: '' });
-    },
-  });
-
-  const createTaskMutation = useMutation({
-    mutationFn: (data: { decision_id: string; title: string; notes?: string }) =>
-      tasksApi.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks', decision.id] });
-      setAddingTask(false);
-      setTaskFormData({ title: '', notes: '' });
-    },
-  });
-
-  const createMemoMutation = useMutation({
-    mutationFn: (data: { decision_id: string; content: string }) =>
-      memosApi.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['memos', decision.id] });
-      setAddingMemo(false);
-      setMemoFormData({ content: '' });
-    },
-  });
-
-  const updateDecisionStatusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: DecisionStatus }) =>
-      decisionsApi.update(id, { status }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['decisions'] });
-    },
   });
 
   const timelineItems = useMemo(() => {
@@ -574,16 +526,50 @@ function JourneyCard({
     return items.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [decision.id, decision.date, decision.review_at, logs, tasksData?.data, memosData?.data]);
 
+  const createLogMutation = useMutation({
+    mutationFn: ({ decisionId, data }: { decisionId: string; data: NewLogData }) =>
+      decisionsApi.createLog(decisionId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['logs', variables.decisionId] });
+      queryClient.invalidateQueries({ queryKey: ['decisions'] });
+      setAddingLogForDecision(false);
+      setLogFormData({ type: 'note', content: '' });
+    },
+  });
+
+  const createTaskMutation = useMutation({
+    mutationFn: (data: { decision_id: string; title: string; notes?: string }) =>
+      tasksApi.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks', decision.id] });
+      setAddingTask(false);
+      setTaskFormData({ title: '', notes: '' });
+    },
+  });
+
+  const createMemoMutation = useMutation({
+    mutationFn: (data: { decision_id: string; content: string }) =>
+      memosApi.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['memos', decision.id] });
+      setAddingMemo(false);
+      setMemoFormData({ content: '' });
+    },
+  });
+
+  const updateDecisionStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: DecisionStatus }) =>
+      decisionsApi.update(id, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['decisions'] });
+    },
+  });
+
   const handleCreateLog = () => {
     const logData: NewLogData = {
       type: logFormData.type,
       content: logFormData.content,
     };
-
-    if (logFormData.type === 'state_change' && logFormData.newStatus) {
-      logData.content = `Status changed to ${logFormData.newStatus}${logData.content ? ': ' + logFormData.content : ''}`;
-      updateDecisionStatusMutation.mutate({ id: decision.id, status: logFormData.newStatus as DecisionStatus });
-    }
 
     createLogMutation.mutate({ decisionId: decision.id, data: logData });
   };
@@ -611,7 +597,7 @@ function JourneyCard({
 
   const cancelLogForm = () => {
     setAddingLogForDecision(false);
-    setLogFormData({ type: 'note', content: '', newStatus: '' });
+    setLogFormData({ type: 'note', content: '' });
   };
 
   const cancelTaskForm = () => {
@@ -697,77 +683,20 @@ function JourneyCard({
       </div>
 
       <div className="journey-timeline" onClick={onSelect}>
-        <div className="timeline-node origin" title={`Decision made: ${decision.date}`}>
-          <span className="node-marker">○</span>
-          <span className="node-label">{decision.date}</span>
-        </div>
-
-        <div className="timeline-path">
-          {decision.review_at && (
-            <div className="timeline-marker reflection" title={`Review: ${decision.review_at}`}>
-              <span className="marker-icon">🌙</span>
-            </div>
-          )}
-          
-          {timelineItems.filter(item => item.type !== 'origin' && item.type !== 'review').map((item) => (
-            <MilestoneNode key={item.id} item={item} />
-          ))}
-        </div>
-
-        <div className={`timeline-node current status-${decision.status}`} title={`Current: ${decision.status}`}>
-          <span className="node-marker">
-            {decision.status === 'ongoing' ? '●' : decision.status === 'completed' ? '○' : '·'}
-          </span>
-          <span className="node-label">{decision.status}</span>
-        </div>
+        <Timeline 
+          items={timelineItems} 
+          currentStatus={decision.status} 
+        />
       </div>
 
       {isSelected && (
         <div className="journey-expanded">
-          <div className="journey-scroll">
-            <div className="journey-scroll-content">
-              {timelineItems.filter(item => item.type === 'origin' || item.type === 'review').map((item) => (
-                <div key={item.id} className={`timeline-item ${item.type}`}>
-                  <div className="timeline-item-marker">
-                    {item.type === 'origin' ? (
-                      <span className="node-marker">○</span>
-                    ) : (
-                      <span className="marker-icon">🌙</span>
-                    )}
-                  </div>
-                  <div className="timeline-item-content">
-                    <div className="timeline-item-date">{item.date}</div>
-                    <div className="timeline-item-title">{item.title}</div>
-                    <div className="timeline-item-type">{item.type}</div>
-                  </div>
-                </div>
-              ))}
-
-              {timelineItems.filter(item => item.type === 'log' || item.type === 'task' || item.type === 'memo').map((item, index, arr) => {
-                const prevItem = index > 0 ? arr[index - 1] : null;
-                const needsConnector = !prevItem || prevItem.type === 'origin' || prevItem.type === 'review';
-                return (
-                  <TimelineItemComponent 
-                    key={item.id} 
-                    item={item} 
-                    needsConnector={needsConnector}
-                  />
-                );
-              })}
-
-              <div className={`timeline-item current status-${decision.status}`}>
-                <div className="timeline-item-connector" />
-                <div className="timeline-item-marker">
-                  <span className="node-marker">
-                    {decision.status === 'ongoing' ? '●' : decision.status === 'completed' ? '○' : '·'}
-                  </span>
-                </div>
-                <div className="timeline-item-content">
-                  <div className="timeline-item-title">Now</div>
-                  <div className="timeline-item-type">{decision.status}</div>
-                </div>
-              </div>
-            </div>
+          {/* Vertical text-based timeline */}
+          <div className="journey-timeline-vertical">
+            <Timeline 
+              items={timelineItems} 
+              currentStatus={decision.status} 
+            />
           </div>
 
           {addingLogForDecision ? (
@@ -778,14 +707,6 @@ function JourneyCard({
                   onValueChange={(value) => setLogFormData({ ...logFormData, type: value as LogType })}
                   className="log-type-select"
                 />
-                
-                {logFormData.type === 'state_change' && (
-                  <StatusSelect
-                    value={logFormData.newStatus as string}
-                    onValueChange={(value) => setLogFormData({ ...logFormData, newStatus: value as DecisionStatus | '' })}
-                    className="status-select"
-                  />
-                )}
               </div>
               
               <textarea
@@ -793,9 +714,7 @@ function JourneyCard({
                 placeholder={
                   logFormData.type === 'note' 
                     ? 'Write a note about this decision...' 
-                    : logFormData.type === 'reflection'
-                    ? 'Reflect on this decision...'
-                    : 'Add notes about this status change...'
+                    : 'Reflect on this decision...'
                 }
                 value={logFormData.content}
                 onChange={(e) => setLogFormData({ ...logFormData, content: e.target.value })}
@@ -806,7 +725,7 @@ function JourneyCard({
                 <button 
                   className="btn btn-primary" 
                   onClick={handleCreateLog}
-                  disabled={logFormData.type === 'state_change' && !logFormData.newStatus && !logFormData.content}
+                  disabled={!logFormData.content.trim()}
                 >
                   Add to Journey
                 </button>
@@ -922,72 +841,9 @@ function LogTypeSelect({
             <Select.Item value="reflection" className="select-item">
               <Select.ItemText>Reflection</Select.ItemText>
             </Select.Item>
-            <Select.Item value="state_change" className="select-item">
-              <Select.ItemText>Status Change</Select.ItemText>
-            </Select.Item>
           </Select.Viewport>
         </Select.Content>
       </Select.Portal>
     </Select.Root>
-  );
-}
-
-function MilestoneNode({ item }: { item: TimelineItem }) {
-  const icon = useMemo(
-    () => getTypeIcon(item.type, item.status, item.logType),
-    [item.type, item.status, item.logType]
-  );
-
-  return (
-    <div className={`timeline-mestone type-${item.type}`} title={`${item.title}: ${item.content?.slice(0, 50) || ''}...`}>
-      <span className="node-marker">{icon}</span>
-    </div>
-  );
-}
-
-function TimelineItemComponent({ item, needsConnector }: { item: TimelineItem; needsConnector?: boolean }) {
-  const [expanded, setExpanded] = useState(false);
-  
-  const icon = useMemo(
-    () => getTypeIcon(item.type, item.status, item.logType),
-    [item.type, item.status, item.logType]
-  );
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const isLongContent = item.content ? item.content.length > 100 : false;
-
-  return (
-    <div className={`timeline-item type-${item.type}`}>
-      {needsConnector && <div className="timeline-item-connector" />}
-      <div className="timeline-item-marker">
-        <span className="node-marker">{icon}</span>
-      </div>
-      <div className="timeline-item-content" onClick={() => isLongContent && setExpanded(!expanded)}>
-        <div className="timeline-item-date">{formatDate(item.date)}</div>
-        <div className="timeline-item-title">{item.title}</div>
-        {item.content && (
-          <div className={`timeline-item-body ${expanded ? 'expanded' : ''}`}>
-            {isLongContent && !expanded ? (
-              <>
-                {item.content.slice(0, 100)}...
-                <span className="read-more">tap to read more</span>
-              </>
-            ) : (
-              item.content
-            )}
-          </div>
-        )}
-        <div className="timeline-item-type">{item.type}</div>
-      </div>
-    </div>
   );
 }
