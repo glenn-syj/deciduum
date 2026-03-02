@@ -100,7 +100,7 @@ export default function Memos() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this memo?')) {
+    if (confirm('Delete this memo? This cannot be undone.')) {
       deleteMutation.mutate(id);
     }
   };
@@ -130,23 +130,15 @@ export default function Memos() {
     <div className="page">
       <div className="page-header">
         <h1>Memos</h1>
-        {!isCreating && (
-          <button className="btn btn-primary" onClick={() => setIsCreating(true)}>
-            + New Memo
-          </button>
-        )}
       </div>
 
       {isCreating && (
-        <div className="card form-card">
-          <h2 className="card-title">
-            {editingId ? 'Edit Memo' : 'New Memo'}
-          </h2>
+        <div className="form-section">
+          <h3>{editingId ? '> Edit Memo' : '> New Memo'}</h3>
           <form onSubmit={handleSubmit}>
             <div className="form-group">
-              <label className="form-label">Content</label>
+              <label>Content: </label>
               <textarea
-                className="form-textarea"
                 rows={4}
                 value={formData.content}
                 onChange={(e) => setFormData({ ...formData, content: e.target.value })}
@@ -156,10 +148,9 @@ export default function Memos() {
 
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">Date</label>
+                <label>Date: </label>
                 <input
                   type="date"
-                  className="form-input"
                   value={formData.date}
                   onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                   required
@@ -167,87 +158,106 @@ export default function Memos() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Linked Decision</label>
+                <label>Decision: </label>
                 <select
-                  className="form-input"
                   value={formData.linked_decision_id}
-                  onChange={(e) =>
-                    setFormData({ ...formData, linked_decision_id: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, linked_decision_id: e.target.value })}
                 >
                   <option value="">None</option>
-                  {decisions.map((dec) => (
-                    <option key={dec.id} value={dec.id}>
-                      {dec.title}
-                    </option>
+                  {decisions.map(decision => (
+                    <option key={decision.id} value={decision.id}>{decision.title}</option>
                   ))}
                 </select>
               </div>
 
               <div className="form-group">
-                <label className="form-label">Linked Direction</label>
+                <label>Direction: </label>
                 <select
-                  className="form-input"
                   value={formData.linked_direction_id}
-                  onChange={(e) =>
-                    setFormData({ ...formData, linked_direction_id: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, linked_direction_id: e.target.value })}
                 >
                   <option value="">None</option>
-                  {directions.map((dir) => (
-                    <option key={dir.id} value={dir.id}>
-                      {dir.title}
-                    </option>
+                  {directions.map(direction => (
+                    <option key={direction.id} value={direction.id}>{direction.title}</option>
                   ))}
                 </select>
               </div>
             </div>
 
             <div className="form-actions">
-              <button type="submit" className="btn btn-primary">
-                {editingId ? 'Update' : 'Create'}
-              </button>
-              <button type="button" className="btn btn-secondary" onClick={cancelForm}>
-                Cancel
-              </button>
+              <button type="submit">{editingId ? '[save]' : '[create]'}</button>
+              <button type="button" onClick={cancelForm}>[cancel]</button>
             </div>
           </form>
         </div>
       )}
 
+      {!isCreating && (
+        <button className="btn-link" onClick={() => setIsCreating(true)}>+ create new memo</button>
+      )}
+
       {memos.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">📝</div>
-          <p>No memos yet. Create your first memo!</p>
+          <p>No memos yet.</p>
         </div>
       ) : (
-        <div className="list">
+        <div className="memos-list">
+          <h3>--- Memos ---</h3>
           {memos.map((memo) => (
-            <div key={memo.id} className="list-item">
-              <div className="list-item-content">
-                <div className="list-item-title memo-content">{memo.content}</div>
-                <div className="list-item-meta">
-                  <span>{memo.date}</span>
-                  {memo.linked_decision_id && <span>Linked to decision</span>}
-                  {memo.linked_direction_id && <span>Linked to direction</span>}
-                </div>
-              </div>
-              <div className="list-item-actions">
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => handleEdit(memo)}
-                >
-                  Edit
-                </button>
-                <button
-                  className="btn btn-danger btn-sm"
-                  onClick={() => handleDelete(memo.id)}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
+            <MemoItem
+              key={memo.id}
+              memo={memo}
+              onEdit={() => handleEdit(memo)}
+              onDelete={() => handleDelete(memo.id)}
+            />
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface MemoItemProps {
+  memo: Memo;
+  onEdit: () => void;
+  onDelete: () => void;
+}
+
+function MemoItem({ memo, onEdit, onDelete }: MemoItemProps) {
+  const [expanded, setExpanded] = useState(false);
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toISOString().split('T')[0];
+  };
+
+  return (
+    <div className="memo-item">
+      <div className="memo-main">
+        <span>- {formatDate(memo.date)}: </span>
+        <span>{memo.content}</span>
+        <span> </span>
+        <button className="btn-link" onClick={() => setExpanded(!expanded)}>
+          {expanded ? '[-]' : '[+]'}
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="memo-expanded">
+          <div className="memo-actions">
+            <button className="btn-link" onClick={onEdit}>[edit]</button>
+            <button className="btn-link" onClick={onDelete}>[delete]</button>
+          </div>
+          {memo.linked_decision_id && (
+            <div className="memo-link">
+              <span>Linked to decision: {memo.linked_decision_id}</span>
+            </div>
+          )}
+          {memo.linked_direction_id && (
+            <div className="memo-link">
+              <span>Linked to direction: {memo.linked_direction_id}</span>
+            </div>
+          )}
         </div>
       )}
     </div>

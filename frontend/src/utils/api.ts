@@ -39,6 +39,7 @@ export interface DecisionLog {
   decision_id: string;
   type: 'note' | 'reflection' | 'state_change';
   content: string;
+  source: 'human' | 'system';
   created_at: string;
 }
 
@@ -106,6 +107,8 @@ export const memosApi = {
   create: (data: Partial<Memo>) => api.post<{ data: Memo }>('/memos', data),
   update: (id: string, data: Partial<Memo>) => api.patch<{ data: Memo }>(`/memos/${id}`, data),
   delete: (id: string) => api.delete(`/memos/${id}`),
+  listByDecision: (decisionId: string, params?: { page?: number; limit?: number }) =>
+    api.get<PaginatedResponse<Memo>>('/memos', { params: { ...params, linked_decision_id: decisionId } }),
 };
 
 export const directionsApi = {
@@ -118,7 +121,7 @@ export const directionsApi = {
 };
 
 export const todayApi = {
-  get: (date?: string) => api.get<TodayResponse>('/today', { params: { date } }),
+  get: (date?: string) => api.get<{ data: TodayResponse }>('/today', { params: { date } }),
 };
 
 export const tasksApi = {

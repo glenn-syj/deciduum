@@ -12,7 +12,7 @@ export default function Directions() {
   const queryClient = useQueryClient();
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [selectedDirectionId, setSelectedDirectionId] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState({
     title: '',
   });
@@ -23,16 +23,6 @@ export default function Directions() {
       const response = await directionsApi.list();
       return response.data;
     },
-  });
-
-  const { data: directionDetails } = useQuery({
-    queryKey: ['direction-details', selectedDirectionId],
-    queryFn: async () => {
-      if (!selectedDirectionId) return null;
-      const response = await directionsApi.getDetails(selectedDirectionId);
-      return response.data as DirectionDetails;
-    },
-    enabled: !!selectedDirectionId,
   });
 
   const createMutation = useMutation({
@@ -56,11 +46,8 @@ export default function Directions() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => directionsApi.delete(id),
-    onSuccess: (_, deletedId) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['directions'] });
-      if (selectedDirectionId === deletedId) {
-        setSelectedDirectionId(null);
-      }
     },
   });
 
@@ -92,7 +79,7 @@ export default function Directions() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this direction?')) {
+    if (confirm('Delete this direction? This cannot be undone.')) {
       deleteMutation.mutate(id);
     }
   };
@@ -103,8 +90,16 @@ export default function Directions() {
     resetForm();
   };
 
-  const closeDetails = () => {
-    setSelectedDirectionId(null);
+  const toggleExpanded = (id: string) => {
+    setExpandedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
   };
 
   if (isLoading) {
@@ -124,24 +119,16 @@ export default function Directions() {
     <div className="page">
       <div className="page-header">
         <h1>Directions</h1>
-        {!isCreating && (
-          <button className="btn btn-primary" onClick={() => setIsCreating(true)}>
-            + New Direction
-          </button>
-        )}
       </div>
 
       {isCreating && (
-        <div className="card form-card">
-          <h2 className="card-title">
-            {editingId ? 'Edit Direction' : 'New Direction'}
-          </h2>
+        <div className="form-section">
+          <h3>{editingId ? '> Edit Direction' : '> New Direction'}</h3>
           <form onSubmit={handleSubmit}>
             <div className="form-group">
-              <label className="form-label">Title</label>
+              <label>Title: </label>
               <input
                 type="text"
-                className="form-input"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 required
@@ -149,111 +136,118 @@ export default function Directions() {
             </div>
 
             <div className="form-actions">
-              <button type="submit" className="btn btn-primary">
-                {editingId ? 'Update' : 'Create'}
-              </button>
-              <button type="button" className="btn btn-secondary" onClick={cancelForm}>
-                Cancel
-              </button>
+              <button type="submit">{editingId ? '[save]' : '[create]'}</button>
+              <button type="button" onClick={cancelForm}>[cancel]</button>
             </div>
           </form>
         </div>
       )}
 
-      <div className="directions-layout">
-        <div className="directions-list-section">
-          {directions.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">🧭</div>
-              <p>No directions yet. Create your first direction!</p>
-            </div>
-          ) : (
-            <div className="list">
-              {directions.map((direction) => (
-                <div
-                  key={direction.id}
-                  className={`list-item direction-item ${
-                    selectedDirectionId === direction.id ? 'selected' : ''
-                  }`}
-                >
-                  <div
-                    className="list-item-content"
-                    onClick={() => setSelectedDirectionId(direction.id)}
-                  >
-                    <div className="list-item-title">{direction.title}</div>
-                    <div className="list-item-meta">
-                      Created: {direction.created_at?.split('T')[0]}
-                    </div>
-                  </div>
-                  <div className="list-item-actions">
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => handleEdit(direction)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="btn btn-danger btn-sm"
-                      onClick={() => handleDelete(direction.id)}
-                    >
-                      Delete
-                    </button>
-                  </div>
+      {!isCreating && (
+        <button className="btn-link" onClick={() => setIsCreating(true)}>+ create new direction</button>
+      )}
+
+      {directions.length === 0 ? (
+        <div className="empty-state">
+          <p>No directions yet.</p>
+        </div>
+      ) : (
+        <div className="directions-list">
+          {directions.map((direction) => (
+            <DirectionItem
+              key={direction.id}
+              direction={direction}
+              isExpanded={expandedIds.has(direction.id)}
+              onToggle={() => toggleExpanded(direction.id)}
+              onEdit={() => handleEdit(direction)}
+              onDelete={() => handleDelete(direction.id)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface DirectionItemProps {
+  direction: Direction;
+  isExpanded: boolean;
+  onToggle: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}
+
+function DirectionItem({
+  direction,
+  isExpanded,
+  onToggle,
+  onEdit,
+  onDelete,
+}: DirectionItemProps) {
+  const { data: detailsData } = useQuery({
+    queryKey: ['direction-details', direction.id],
+    queryFn: async () => {
+      const response = await directionsApi.getDetails(direction.id);
+      return response.data as DirectionDetails;
+    },
+    enabled: !!direction.id,
+  });
+
+  const details = detailsData;
+
+  return (
+    <div className="direction-item">
+      {/* Main direction line */}
+      <div className="direction-main">
+        <span>* {direction.title}</span>
+        <span> </span>
+        <button className="btn-link" onClick={onToggle}>
+          {isExpanded ? '[-]' : '[+]'}
+        </button>
+      </div>
+
+      {/* Expanded content with decisions and memos */}
+      {isExpanded && details && (
+        <div className="direction-expanded">
+          {/* Decision count */}
+          <div className="direction-meta">
+            <span>  - Decisions: {details.decisions.length}</span>
+          </div>
+
+          {/* Decisions list */}
+          {details.decisions.length > 0 && (
+            <div className="direction-decisions">
+              {details.decisions.map(decision => (
+                <div key={decision.id} className="direction-decision-item">
+                  <span>  - [{decision.status}] {decision.title}</span>
                 </div>
               ))}
             </div>
           )}
-        </div>
 
-        {selectedDirectionId && directionDetails && (
-          <div className="direction-details-section">
-            <div className="card">
-              <div className="card-header">
-                <h2 className="card-title">{directionDetails.direction.title}</h2>
-                <button className="btn btn-secondary btn-sm" onClick={closeDetails}>
-                  Close
-                </button>
-              </div>
-
-              <div className="direction-details-content">
-                <section className="details-section">
-                  <h3>Decisions ({directionDetails.decisions.length})</h3>
-                  {directionDetails.decisions.length === 0 ? (
-                    <p className="empty-text">No decisions in this direction</p>
-                  ) : (
-                    <ul className="details-list">
-                      {directionDetails.decisions.map((decision) => (
-                        <li key={decision.id} className="details-list-item">
-                          <span className="details-list-title">{decision.title}</span>
-                          <span className={`status-badge status-${decision.status}`}>
-                            {decision.status}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </section>
-
-                <section className="details-section">
-                  <h3>Memos ({directionDetails.memos.length})</h3>
-                  {directionDetails.memos.length === 0 ? (
-                    <p className="empty-text">No memos in this direction</p>
-                  ) : (
-                    <ul className="details-list">
-                      {directionDetails.memos.map((memo) => (
-                        <li key={memo.id} className="details-list-item">
-                          <span className="details-list-content">{memo.content}</span>
-                          <span className="details-list-meta">{memo.date}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </section>
-              </div>
-            </div>
+          {/* Memos count */}
+          <div className="direction-meta">
+            <span>  - Memos: {details.memos.length}</span>
           </div>
-        )}
-      </div>
+
+          {/* Memos list */}
+          {details.memos.length > 0 && (
+            <div className="direction-memos">
+              {details.memos.map(memo => (
+                <div key={memo.id} className="direction-memo-item">
+                  <span>  - {memo.date}: {memo.content.substring(0, 50)}{memo.content.length > 50 ? '...' : ''}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Action links */}
+          <div className="direction-actions">
+            <button className="btn-link" onClick={onEdit}>[edit]</button>
+            <button className="btn-link" onClick={onDelete}>[delete]</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

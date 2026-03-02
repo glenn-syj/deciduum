@@ -5,7 +5,7 @@ from datetime import datetime, date
 from typing import Optional
 
 from app.core.database import get_db
-from app.models.models import Decision, DecisionLog, Direction, Task
+from app.models.models import Decision, DecisionLog, Direction, Task, generate_uuid
 from app.schemas.decision import DecisionCreate, DecisionUpdate, DecisionResponse
 from app.schemas.decision_log import DecisionLogCreate, DecisionLogResponse
 from app.schemas.task import TaskCreate, TaskResponse
@@ -239,12 +239,22 @@ async def update_decision(
             )
 
     # Update fields
+    old_status = db_decision.status
     if decision.title is not None:
         db_decision.title = decision.title
     if decision.date is not None:
         db_decision.date = datetime.strptime(decision.date, "%Y-%m-%d").date()
     if decision.status is not None:
         db_decision.status = decision.status
+        # Create automatic DecisionLog for status change
+        auto_log = DecisionLog(
+            id=generate_uuid(),
+            decision_id=decision_id,
+            type="state_change",
+            content=f"Status changed from {old_status} to {decision.status}",
+            source="system",
+        )
+        db.add(auto_log)
     if decision.review_at is not None:
         db_decision.review_at = datetime.strptime(decision.review_at, "%Y-%m-%d").date()
 
@@ -380,6 +390,7 @@ async def create_decision_log(
         decision_id=decision_id,
         type=log.type,
         content=log.content,
+        source=log.source,
     )
     db.add(db_log)
     await db.commit()

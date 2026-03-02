@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { decisionsApi, directionsApi, DecisionLog } from '../utils/api';
 
@@ -25,8 +25,7 @@ export default function Decisions() {
   const queryClient = useQueryClient();
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [selectedDecisionId, setSelectedDecisionId] = useState<string | null>(null);
-  const [addingLogForDecision, setAddingLogForDecision] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState({
     title: '',
     date: new Date().toISOString().split('T')[0],
@@ -34,44 +33,6 @@ export default function Decisions() {
     review_at: '',
     direction_id: '',
   });
-
-  // Log form state
-  const [logFormData, setLogFormData] = useState({
-    type: 'note' as LogType,
-    content: '',
-    newStatus: '' as DecisionStatus | '',
-  });
-
-  // Fetch logs for a specific decision
-  const useLogsForDecision = (decisionId: string) => {
-    return useQuery({
-      queryKey: ['logs', decisionId],
-      queryFn: async () => {
-        const response = await decisionsApi.listLogs(decisionId);
-        return response.data;
-      },
-      enabled: !!decisionId,
-    });
-  };
-
-  const createLogMutation = useMutation({
-    mutationFn: ({ decisionId, data }: { decisionId: string; data: NewLogData }) =>
-      decisionsApi.createLog(decisionId, data),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['logs', variables.decisionId] });
-      queryClient.invalidateQueries({ queryKey: ['decisions'] });
-      setAddingLogForDecision(null);
-      resetLogForm();
-    },
-  });
-
-  const resetLogForm = () => {
-    setLogFormData({
-      type: 'note',
-      content: '',
-      newStatus: '',
-    });
-  };
 
   const { data: decisionsData, isLoading } = useQuery({
     queryKey: ['decisions'],
@@ -89,16 +50,21 @@ export default function Decisions() {
     },
   });
 
+  const directions = directionsData?.data || [];
+  const directionMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    directions.forEach(dir => {
+      map[dir.id] = dir.title;
+    });
+    return map;
+  }, [directions]);
+
   const createMutation = useMutation({
     mutationFn: (data: Partial<Decision>) => decisionsApi.create(data),
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['decisions'] });
       setIsCreating(false);
       resetForm();
-      // Auto-expand the newly created decision's journey
-      if (data.data?.id) {
-        setSelectedDecisionId(data.data.id);
-      }
     },
   });
 
@@ -159,7 +125,7 @@ export default function Decisions() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this decision?')) {
+    if (confirm('Delete this decision? This cannot be undone.')) {
       deleteMutation.mutate(id);
     }
   };
@@ -170,27 +136,16 @@ export default function Decisions() {
     resetForm();
   };
 
-  // Log handlers
-  const handleCreateLog = (decisionId: string) => {
-    const logData: NewLogData = {
-      type: logFormData.type,
-      content: logFormData.content,
-    };
-
-    // If state_change and new status provided, append to content
-    if (logFormData.type === 'state_change' && logFormData.newStatus) {
-      logData.content = `Status changed to ${logFormData.newStatus}${logData.content ? ': ' + logData.content : ''}`;
-      
-      // Also update the decision status
-      decisionsApi.update(decisionId, { status: logFormData.newStatus as DecisionStatus });
-    }
-
-    createLogMutation.mutate({ decisionId, data: logData });
-  };
-
-  const cancelLogForm = () => {
-    setAddingLogForDecision(null);
-    resetLogForm();
+  const toggleExpanded = (id: string) => {
+    setExpandedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
   };
 
   if (isLoading) {
@@ -205,30 +160,21 @@ export default function Decisions() {
   }
 
   const decisions = decisionsData?.data || [];
-  const directions = directionsData?.data || [];
 
   return (
     <div className="page">
       <div className="page-header">
         <h1>Decisions</h1>
-        {!isCreating && (
-          <button className="btn btn-primary" onClick={() => setIsCreating(true)}>
-            + New Decision
-          </button>
-        )}
       </div>
 
       {isCreating && (
-        <div className="card form-card">
-          <h2 className="card-title">
-            {editingId ? 'Edit Decision' : 'New Decision'}
-          </h2>
+        <div className="form-section">
+          <h3>{editingId ? '> Edit Decision' : '> New Decision'}</h3>
           <form onSubmit={handleSubmit}>
             <div className="form-group">
-              <label className="form-label">Title</label>
+              <label>Title: </label>
               <input
                 type="text"
-                className="form-input"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 required
@@ -237,10 +183,9 @@ export default function Decisions() {
 
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">Date</label>
+                <label>Date: </label>
                 <input
                   type="date"
-                  className="form-input"
                   value={formData.date}
                   onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                   required
@@ -248,16 +193,10 @@ export default function Decisions() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Status</label>
+                <label>Status: </label>
                 <select
-                  className="form-input"
                   value={formData.status}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      status: e.target.value as DecisionStatus,
-                    })
-                  }
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value as DecisionStatus })}
                 >
                   <option value="ongoing">Ongoing</option>
                   <option value="completed">Completed</option>
@@ -268,69 +207,56 @@ export default function Decisions() {
 
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">Review At (optional)</label>
+                <label>Review at: </label>
                 <input
                   type="date"
-                  className="form-input"
                   value={formData.review_at}
                   onChange={(e) => setFormData({ ...formData, review_at: e.target.value })}
                 />
               </div>
 
               <div className="form-group">
-                <label className="form-label">Direction</label>
+                <label>Direction: </label>
                 <select
-                  className="form-input"
                   value={formData.direction_id}
-                  onChange={(e) =>
-                    setFormData({ ...formData, direction_id: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, direction_id: e.target.value })}
                 >
                   <option value="">None</option>
-                  {directions.map((dir) => (
-                    <option key={dir.id} value={dir.id}>
-                      {dir.title}
-                    </option>
+                  {directions.map(dir => (
+                    <option key={dir.id} value={dir.id}>{dir.title}</option>
                   ))}
                 </select>
               </div>
             </div>
 
             <div className="form-actions">
-              <button type="submit" className="btn btn-primary">
-                {editingId ? 'Update' : 'Create'}
-              </button>
-              <button type="button" className="btn btn-secondary" onClick={cancelForm}>
-                Cancel
-              </button>
+              <button type="submit">{editingId ? '[save]' : '[create]'}</button>
+              <button type="button" onClick={cancelForm}>[cancel]</button>
             </div>
           </form>
         </div>
       )}
 
+      {!isCreating && (
+        <button className="btn-link" onClick={() => setIsCreating(true)}>+ new</button>
+      )}
+
       {decisions.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">⚖️</div>
-          <p>No decisions yet. Create your first decision!</p>
+          <p>No decisions yet.</p>
         </div>
       ) : (
-        <div className="journey-list">
+        <div className="decisions-list">
           {decisions.map((decision) => (
-            <JourneyCard
+            <DecisionItem
               key={decision.id}
               decision={decision}
-              isSelected={selectedDecisionId === decision.id}
-              onSelect={() => setSelectedDecisionId(selectedDecisionId === decision.id ? null : decision.id)}
-              addingLogForDecision={addingLogForDecision}
-              onAddLog={() => handleCreateLog(decision.id)}
-              onCancelLogForm={cancelLogForm}
-              logFormData={logFormData}
-              setLogFormData={setLogFormData}
-              handleEdit={handleEdit}
-              handleDelete={handleDelete}
-              useLogsForDecision={useLogsForDecision}
-              resetLogForm={resetLogForm}
-              setAddingLogForDecision={setAddingLogForDecision}
+              directionTitle={decision.direction_id ? directionMap[decision.direction_id] : null}
+              isExpanded={expandedIds.has(decision.id)}
+              onToggle={() => toggleExpanded(decision.id)}
+              onEdit={() => handleEdit(decision)}
+              onDelete={() => handleDelete(decision.id)}
+              directions={directions}
             />
           ))}
         </div>
@@ -339,297 +265,219 @@ export default function Decisions() {
   );
 }
 
-// Journey Card Component with Timeline
-interface JourneyCardProps {
+interface DecisionItemProps {
   decision: Decision;
-  isSelected: boolean;
-  onSelect: () => void;
-  addingLogForDecision: string | null;
-  onAddLog: () => void;
-  onCancelLogForm: () => void;
-  logFormData: { type: LogType; content: string; newStatus: DecisionStatus | '' };
-  setLogFormData: React.Dispatch<React.SetStateAction<{ type: LogType; content: string; newStatus: DecisionStatus | '' }>>;
-  handleEdit: (decision: Decision) => void;
-  handleDelete: (id: string) => void;
-  useLogsForDecision: (decisionId: string) => any;
-  resetLogForm: () => void;
-  setAddingLogForDecision: (id: string | null) => void;
+  directionTitle: string | null;
+  isExpanded: boolean;
+  onToggle: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  directions: { id: string; title: string }[];
 }
 
-function JourneyCard({
+function DecisionItem({
   decision,
-  isSelected,
-  onSelect,
-  addingLogForDecision,
-  onAddLog,
-  onCancelLogForm,
-  logFormData,
-  setLogFormData,
-  handleEdit,
-  handleDelete,
-  useLogsForDecision,
-  resetLogForm,
-  setAddingLogForDecision,
-}: JourneyCardProps) {
-  const { data: logsData } = useLogsForDecision(decision.id);
-  const logs = logsData?.data || [];
+  directionTitle,
+  isExpanded,
+  onToggle,
+  onEdit,
+  onDelete,
+  directions: _directions,
+}: DecisionItemProps) {
+  const queryClient = useQueryClient();
+  const [addingLog, setAddingLog] = useState(false);
+  const [logFormData, setLogFormData] = useState({
+    type: 'note' as LogType,
+    content: '',
+  });
 
-  // Sort logs by date (oldest first)
-  const sortedLogs = [...logs].sort((a, b) => 
-    new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  );
+  const { data: logsData } = useQuery({
+    queryKey: ['logs', decision.id],
+    queryFn: async () => {
+      const response = await decisionsApi.listLogs(decision.id);
+      return response.data;
+    },
+    enabled: !!decision.id,
+  });
+  const logs: DecisionLog[] = logsData?.data || [];
+
+  const createLogMutation = useMutation({
+    mutationFn: ({ decisionId, data }: { decisionId: string; data: NewLogData }) =>
+      decisionsApi.createLog(decisionId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['logs', variables.decisionId] });
+      queryClient.invalidateQueries({ queryKey: ['decisions'] });
+      setAddingLog(false);
+      setLogFormData({ type: 'note', content: '' });
+    },
+  });
+
+  const updateDecisionStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: DecisionStatus }) =>
+      decisionsApi.update(id, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['decisions'] });
+    },
+  });
+
+  const handleCreateLog = () => {
+    if (!logFormData.content.trim()) return;
+    const logData: NewLogData = {
+      type: logFormData.type,
+      content: logFormData.content,
+    };
+    createLogMutation.mutate({ decisionId: decision.id, data: logData });
+  };
+
+  const handleStatusChange = (newStatus: DecisionStatus) => {
+    updateDecisionStatusMutation.mutate({ id: decision.id, status: newStatus });
+  };
+
+  const cancelLogForm = () => {
+    setAddingLog(false);
+    setLogFormData({ type: 'note', content: '' });
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toISOString().split('T')[0];
+  };
 
   return (
-    <div className="journey-card">
-      {/* Header */}
-      <div className="journey-header" onClick={onSelect}>
-        <div className="journey-title-section">
-          <h3 className="journey-title">{decision.title}</h3>
-          <span className={`status-badge status-${decision.status}`}>
-            {decision.status}
-          </span>
-        </div>
-        <div className="journey-actions">
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleEdit(decision);
-            }}
-          >
-            Edit
-          </button>
-          <button
-            className="btn btn-danger btn-sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete(decision.id);
-            }}
-          >
-            Delete
-          </button>
-        </div>
+    <div className="decision-item">
+      {/* Main decision line */}
+      <div className="decision-main">
+        <span>[{decision.status}] </span>
+        <span>{formatDate(decision.date)}: </span>
+        <span>{decision.title}</span>
+        {directionTitle && <span> ({directionTitle})</span>}
+        <span> </span>
+        <button className="btn-link" onClick={onToggle}>
+          {isExpanded ? '[-]' : '[+]'}
+        </button>
       </div>
 
-      {/* Timeline Preview */}
-      <div className="journey-timeline" onClick={onSelect}>
-        {/* Origin Node */}
-        <div className="timeline-node origin" title={`Decision made: ${decision.date}`}>
-          <span className="node-marker">○</span>
-          <span className="node-label">{decision.date}</span>
-        </div>
-
-        {/* Timeline Path */}
-        <div className="timeline-path">
-          {/* Reflection marker if review_at exists */}
-          {decision.review_at && (
-            <div className="timeline-marker reflection" title={`Review: ${decision.review_at}`}>
-              <span className="marker-icon">🌙</span>
-            </div>
-          )}
-          
-          {/* Milestone nodes for logs */}
-          {sortedLogs.map((log) => (
-            <MilestoneNode key={log.id} log={log} />
-          ))}
-        </div>
-
-        {/* Current Position */}
-        <div className={`timeline-node current status-${decision.status}`} title={`Current: ${decision.status}`}>
-          <span className="node-marker">
-            {decision.status === 'ongoing' ? '●' : decision.status === 'completed' ? '○' : '·'}
-          </span>
-          <span className="node-label">{decision.status}</span>
-        </div>
-      </div>
-
-      {/* Expanded Journey View */}
-      {isSelected && (
-        <div className="journey-expanded">
-          {/* Full Timeline with Horizontal Scroll */}
-          <div className="journey-scroll">
-            <div className="journey-scroll-content">
-              {/* Origin */}
-              <div className="timeline-item origin">
-                <div className="timeline-item-marker">
-                  <span className="node-marker">○</span>
-                </div>
-                <div className="timeline-item-content">
-                  <div className="timeline-item-date">{decision.date}</div>
-                  <div className="timeline-item-title">Decision made</div>
-                  <div className="timeline-item-type">origin</div>
-                </div>
-              </div>
-
-              {/* Reflection marker */}
-              {decision.review_at && (
-                <div className="timeline-item reflection">
-                  <div className="timeline-item-connector" />
-                  <div className="timeline-item-marker">
-                    <span className="marker-icon">🌙</span>
-                  </div>
-                  <div className="timeline-item-content">
-                    <div className="timeline-item-date">{decision.review_at}</div>
-                    <div className="timeline-item-title">Reflection point</div>
-                    <div className="timeline-item-type">review</div>
-                  </div>
-                </div>
-              )}
-
-              {/* Logs as milestones */}
-              {sortedLogs.map((log) => (
-                <LogTimelineItem key={log.id} log={log} />
-              ))}
-
-              {/* Current position */}
-              <div className={`timeline-item current status-${decision.status}`}>
-                <div className="timeline-item-connector" />
-                <div className="timeline-item-marker">
-                  <span className="node-marker">
-                    {decision.status === 'ongoing' ? '●' : decision.status === 'completed' ? '○' : '·'}
-                  </span>
-                </div>
-                <div className="timeline-item-content">
-                  <div className="timeline-item-title">Now</div>
-                  <div className="timeline-item-type">{decision.status}</div>
-                </div>
-              </div>
-            </div>
+      {/* Expanded content with logs */}
+      {isExpanded && (
+        <div className="decision-expanded">
+          {/* Action links */}
+          <div className="decision-actions">
+            <button className="btn-link" onClick={onEdit}>[edit]</button>
+            <button className="btn-link" onClick={onDelete}>[delete]</button>
+            <select
+              value={decision.status}
+              onChange={(e) => handleStatusChange(e.target.value as DecisionStatus)}
+              className="status-select"
+            >
+              <option value="ongoing">ongoing</option>
+              <option value="completed">completed</option>
+              <option value="archived">archived</option>
+            </select>
           </div>
 
-          {/* Add Log Form */}
-          {addingLogForDecision === decision.id ? (
+          {/* Decision Journey Timeline */}
+          {logs.length > 0 && (
+            <div className="decision-journey">
+              <div className="journey-section-header">--- Journey ---</div>
+              {(() => {
+                // Build timeline entries
+                const entries: { date: string; dateStr: string; type: string; content: string; isReview?: boolean }[] = [];
+                
+                // Add origin entry (the decision date)
+                entries.push({
+                  date: decision.date,
+                  dateStr: formatDate(decision.date),
+                  type: 'origin',
+                  content: 'Decision made',
+                });
+                
+                // Add log entries sorted by date
+                const sortedLogs = [...logs].sort((a, b) => 
+                  new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+                );
+                sortedLogs.forEach(log => {
+                  entries.push({
+                    date: log.created_at,
+                    dateStr: formatDate(log.created_at),
+                    type: log.type,
+                    content: log.content,
+                  });
+                });
+                
+                // Add review point if exists
+                if (decision.review_at) {
+                  entries.push({
+                    date: decision.review_at,
+                    dateStr: formatDate(decision.review_at),
+                    type: 'review',
+                    content: `Reflection point (review_at)`,
+                    isReview: true,
+                  });
+                }
+                
+                // Sort all entries chronologically
+                entries.sort((a, b) => 
+                  new Date(a.date).getTime() - new Date(b.date).getTime()
+                );
+                
+                return (
+                  <>
+                    {entries.map((entry, idx) => (
+                      <div key={idx} className={`journey-entry ${entry.isReview ? 'journey-review' : ''}`}>
+                        {entry.type === 'origin' ? (
+                          <span className="journey-date">{entry.dateStr}</span>
+                        ) : (
+                          <span className="journey-date">{entry.dateStr}</span>
+                        )}
+                        <span className={`journey-type journey-${entry.type}`}>
+                          {entry.type.padEnd(11)}
+                        </span>
+                        <span className="journey-content">{entry.content}</span>
+                      </div>
+                    ))}
+                    {/* Current position */}
+                    <div className="journey-entry journey-current">
+                      <span className="journey-date">            </span>
+                      <span className="journey-marker">{`>>> ${decision.status}`}</span>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* Add log form */}
+          {addingLog ? (
             <div className="log-form">
               <div className="log-form-row">
                 <select
-                  className="form-input log-type-select"
                   value={logFormData.type}
                   onChange={(e) => setLogFormData({ ...logFormData, type: e.target.value as LogType })}
                 >
-                  <option value="note">Note</option>
-                  <option value="reflection">Reflection</option>
-                  <option value="state_change">Status Change</option>
+                  <option value="note">note</option>
+                  <option value="reflection">reflection</option>
                 </select>
-                
-                {logFormData.type === 'state_change' && (
-                  <select
-                    className="form-input status-select"
-                    value={logFormData.newStatus}
-                    onChange={(e) => setLogFormData({ ...logFormData, newStatus: e.target.value as DecisionStatus | '' })}
-                  >
-                    <option value="">Select new status</option>
-                    <option value="ongoing">Ongoing</option>
-                    <option value="completed">Completed</option>
-                    <option value="archived">Archived</option>
-                  </select>
-                )}
               </div>
-              
               <textarea
-                className="form-textarea log-content"
-                placeholder={
-                  logFormData.type === 'note' 
-                    ? 'Write a note about this decision...' 
-                    : logFormData.type === 'reflection'
-                    ? 'Reflect on this decision...'
-                    : 'Add notes about this status change...'
-                }
+                placeholder={logFormData.type === 'note' ? 'Write a note...' : 'Reflect on this decision...'}
                 value={logFormData.content}
                 onChange={(e) => setLogFormData({ ...logFormData, content: e.target.value })}
-                rows={3}
+                rows={2}
               />
-              
               <div className="log-form-actions">
-                <button 
-                  className="btn btn-primary" 
-                  onClick={onAddLog}
-                  disabled={logFormData.type === 'state_change' && !logFormData.newStatus && !logFormData.content}
-                >
-                  Add to Journey
+                <button onClick={handleCreateLog} disabled={!logFormData.content.trim()}>
+                  [save]
                 </button>
-                <button className="btn btn-secondary" onClick={onCancelLogForm}>
-                  Cancel
-                </button>
+                <button onClick={cancelLogForm}>[cancel]</button>
               </div>
             </div>
           ) : (
-            <button
-              className="btn btn-secondary add-log-btn"
-              onClick={() => {
-                resetLogForm();
-                setAddingLogForDecision(decision.id);
-              }}
-            >
-              + Add to Journey
+            <button className="btn-link" onClick={() => setAddingLog(true)}>
+              + add log
             </button>
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-// Milestone Node (compact view)
-function MilestoneNode({ log }: { log: DecisionLog }) {
-  const getTypeIcon = () => {
-    switch (log.type) {
-      case 'reflection': return '💭';
-      case 'state_change': return '→';
-      default: return '●';
-    }
-  };
-
-  return (
-    <div className={`timeline-mestone type-${log.type}`} title={`${log.type}: ${log.content.slice(0, 50)}...`}>
-      <span className="node-marker">{getTypeIcon()}</span>
-    </div>
-  );
-}
-
-// Expanded Timeline Item for Logs
-function LogTimelineItem({ log }: { log: DecisionLog }) {
-  const [expanded, setExpanded] = useState(false);
-  
-  const getTypeIcon = () => {
-    switch (log.type) {
-      case 'reflection': return '💭';
-      case 'state_change': return '→';
-      default: return '●';
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const isLongContent = log.content.length > 100;
-
-  return (
-    <div className={`timeline-item type-${log.type}`}>
-      <div className="timeline-item-connector" />
-      <div className="timeline-item-marker">
-        <span className="node-marker">{getTypeIcon()}</span>
-      </div>
-      <div className="timeline-item-content" onClick={() => isLongContent && setExpanded(!expanded)}>
-        <div className="timeline-item-date">{formatDate(log.created_at)}</div>
-        <div className={`timeline-item-body ${expanded ? 'expanded' : ''}`}>
-          {isLongContent && !expanded ? (
-            <>
-              {log.content.slice(0, 100)}...
-              <span className="read-more">tap to read more</span>
-            </>
-          ) : (
-            log.content
-          )}
-        </div>
-        <div className="timeline-item-type">{log.type.replace('_', ' ')}</div>
-      </div>
     </div>
   );
 }
