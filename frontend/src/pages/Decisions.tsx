@@ -375,16 +375,74 @@ function DecisionItem({
             </select>
           </div>
 
-          {/* Decision logs */}
+          {/* Decision Journey Timeline */}
           {logs.length > 0 && (
-            <div className="decision-logs">
-              {logs.map(log => (
-                <div key={log.id} className="log-entry">
-                  <span className="log-type">- {log.type}: </span>
-                  <span className="log-content">{log.content}</span>
-                  <span className="log-date"> ({formatDate(log.created_at)})</span>
-                </div>
-              ))}
+            <div className="decision-journey">
+              <div className="journey-section-header">--- Journey ---</div>
+              {(() => {
+                // Build timeline entries
+                const entries: { date: string; dateStr: string; type: string; content: string; isReview?: boolean }[] = [];
+                
+                // Add origin entry (the decision date)
+                entries.push({
+                  date: decision.date,
+                  dateStr: formatDate(decision.date),
+                  type: 'origin',
+                  content: 'Decision made',
+                });
+                
+                // Add log entries sorted by date
+                const sortedLogs = [...logs].sort((a, b) => 
+                  new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+                );
+                sortedLogs.forEach(log => {
+                  entries.push({
+                    date: log.created_at,
+                    dateStr: formatDate(log.created_at),
+                    type: log.type,
+                    content: log.content,
+                  });
+                });
+                
+                // Add review point if exists
+                if (decision.review_at) {
+                  entries.push({
+                    date: decision.review_at,
+                    dateStr: formatDate(decision.review_at),
+                    type: 'review',
+                    content: `Reflection point (review_at)`,
+                    isReview: true,
+                  });
+                }
+                
+                // Sort all entries chronologically
+                entries.sort((a, b) => 
+                  new Date(a.date).getTime() - new Date(b.date).getTime()
+                );
+                
+                return (
+                  <>
+                    {entries.map((entry, idx) => (
+                      <div key={idx} className={`journey-entry ${entry.isReview ? 'journey-review' : ''}`}>
+                        {entry.type === 'origin' ? (
+                          <span className="journey-date">{entry.dateStr}</span>
+                        ) : (
+                          <span className="journey-date">{entry.dateStr}</span>
+                        )}
+                        <span className={`journey-type journey-${entry.type}`}>
+                          {entry.type.padEnd(11)}
+                        </span>
+                        <span className="journey-content">{entry.content}</span>
+                      </div>
+                    ))}
+                    {/* Current position */}
+                    <div className="journey-entry journey-current">
+                      <span className="journey-date">            </span>
+                      <span className="journey-marker">{`>>> ${decision.status}`}</span>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           )}
 
