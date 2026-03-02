@@ -16,23 +16,28 @@ export default function Settings() {
   };
 
   return (
-    <div className="settings-page">
-      <h1>Settings</h1>
-      <div className="form-group">
-        <label>API Key</label>
-        <input
-          type="text"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder="Enter your API key"
-        />
-        <button onClick={handleSave}>
-          {saved ? 'Saved!' : 'Save'}
-        </button>
+    <div className="terminal">
+      <div className="terminal-output">
+        <div>&gt; Settings</div>
+        <div>
+          API Key: <input
+            type="text"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="________________________"
+            className="terminal-input"
+          />
+        </div>
+        <div>
+          <button onClick={handleSave} className="terminal-button">
+            save
+          </button>
+        </div>
+        {saved && <div>&gt; Saved!</div>}
+        <div className="terminal-hint">
+          Hint: Get the API key from your backend .env file (DECIDUUM_API_KEY)
+        </div>
       </div>
-      <p className="hint">
-        Get the API key from your backend .env file (DECIDUUM_API_KEY)
-      </p>
     </div>
   );
 }

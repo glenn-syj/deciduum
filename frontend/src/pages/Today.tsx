@@ -14,10 +14,9 @@ export default function Today() {
   if (isLoading) {
     return (
       <div className="page">
-        <div className="page-header">
-          <h1>Today</h1>
+        <div className="terminal-output">
+          <div>{`> Loading today's data...`}</div>
         </div>
-        <div className="loading">Loading...</div>
       </div>
     );
   }
@@ -25,10 +24,9 @@ export default function Today() {
   if (error) {
     return (
       <div className="page">
-        <div className="page-header">
-          <h1>Today</h1>
+        <div className="terminal-output">
+          <div>{`> Error: Failed to load today's data`}</div>
         </div>
-        <div className="error">Error loading today's data</div>
       </div>
     );
   }
@@ -37,73 +35,44 @@ export default function Today() {
 
   return (
     <div className="page">
-      <div className="page-header">
-        <h1>Today - {today?.date}</h1>
-      </div>
-
-      <div className="today-grid">
-        <section className="card">
-          <h2 className="card-title">Ongoing Decisions</h2>
-          {today?.ongoing_decisions?.length === 0 ? (
-            <p className="empty-text">No ongoing decisions</p>
-          ) : (
-            <ul className="today-list">
-              {today?.ongoing_decisions?.map((decision: Decision) => (
-                <li key={decision.id} className="today-list-item">
-                  <Link to={`/decisions`} className="today-list-link">
-                    <span className="today-list-title">{decision.title}</span>
-                    <span className="today-list-meta">
-                      <span className={`status-badge status-${decision.status}`}>
-                        {decision.status}
-                      </span>
-                      {decision.date}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <section className="card">
-          <h2 className="card-title">Today's Decisions</h2>
-          {today?.todays_decisions?.length === 0 ? (
-            <p className="empty-text">No decisions made today</p>
-          ) : (
-            <ul className="today-list">
-              {today?.todays_decisions?.map((decision: Decision) => (
-                <li key={decision.id} className="today-list-item">
-                  <Link to={`/decisions`} className="today-list-link">
-                    <span className="today-list-title">{decision.title}</span>
-                    <span className="today-list-meta">
-                      <span className={`status-badge status-${decision.status}`}>
-                        {decision.status}
-                      </span>
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <section className="card">
-          <h2 className="card-title">Today's Memos</h2>
-          {today?.todays_memos?.length === 0 ? (
-            <p className="empty-text">No memos today</p>
-          ) : (
-            <ul className="today-list">
-              {today?.todays_memos?.map((memo: Memo) => (
-                <li key={memo.id} className="today-list-item">
-                  <Link to={`/memos`} className="today-list-link">
-                    <span className="today-list-content">{memo.content}</span>
-                    <span className="today-list-meta">{memo.date}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+      <div className="terminal-output">
+        <div>{`> Today - ${today?.date}`}</div>
+        <div></div>
+        <div>{`--- Ongoing Decisions ---`}</div>
+        {today?.ongoing_decisions?.length === 0 ? (
+          <div>&lt;No ongoing decisions&gt;</div>
+        ) : (
+          today?.ongoing_decisions?.map((decision: Decision) => (
+            <div key={decision.id}>
+              {`[${decision.status}] ${decision.title} `}
+              <Link to={`/decisions`} className="terminal-link">[view]</Link>
+            </div>
+          ))
+        )}
+        <div></div>
+        <div>{`--- Today's Decisions ---`}</div>
+        {today?.todays_decisions?.length === 0 ? (
+          <div>&lt;No decisions made today&gt;</div>
+        ) : (
+          today?.todays_decisions?.map((decision: Decision) => (
+            <div key={decision.id}>
+              {`[${decision.status}] ${decision.title} `}
+              <Link to={`/decisions`} className="terminal-link">[view]</Link>
+            </div>
+          ))
+        )}
+        <div></div>
+        <div>{`--- Today's Memos ---`}</div>
+        {today?.todays_memos?.length === 0 ? (
+          <div>&lt;No memos today&gt;</div>
+        ) : (
+          today?.todays_memos?.map((memo: Memo) => (
+            <div key={memo.id}>
+              {`- ${memo.content} `}
+              <Link to={`/memos`} className="terminal-link">[view]</Link>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
