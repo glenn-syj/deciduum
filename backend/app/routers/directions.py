@@ -60,8 +60,26 @@ async def list_directions(
     result = await db.execute(query)
     directions = result.scalars().all()
 
+    # Get decision counts for each direction (N+1 approach - OK for small lists)
+    direction_responses = []
+    for direction in directions:
+        # Count non-deleted decisions for this direction
+        decision_count_query = select(func.count(Decision.id)).where(
+            and_(
+                Decision.direction_id == direction.id,
+                Decision.deleted_at.is_(None),
+            )
+        )
+        count_result = await db.execute(decision_count_query)
+        decision_count = count_result.scalar() or 0
+
+        # Create response with decision_count
+        direction_data = DirectionResponse.model_validate(direction)
+        direction_data.decision_count = decision_count
+        direction_responses.append(direction_data)
+
     return PaginatedResponse(
-        data=[DirectionResponse.model_validate(d) for d in directions],
+        data=direction_responses,
         meta={
             "page": page,
             "limit": limit,
