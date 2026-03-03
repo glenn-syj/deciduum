@@ -4,7 +4,7 @@ from sqlalchemy import select, and_, func
 from datetime import datetime
 from typing import Optional
 
-from app.core.database import get_db
+from app.core.database import get_db_from_header, DEFAULT_SESSION_ID
 from app.models.models import Memo, Decision, Direction
 from app.schemas.memo import MemoCreate, MemoUpdate, MemoResponse
 from app.schemas.common import PaginatedResponse
@@ -30,7 +30,7 @@ async def list_memos(
     limit: int = Query(20, ge=1, le=100),
     sort_by: str = Query("created_at", pattern="^(date|created_at)$"),
     sort_order: str = Query("desc", pattern="^(asc|desc)$"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """List all memos with filters and pagination."""
     # Build base query with soft delete filter
@@ -80,7 +80,7 @@ async def list_memos(
 @router.post("", status_code=201, response_model=dict)
 async def create_memo(
     memo: MemoCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """Create a new memo."""
     # Validate linked_decision_id if provided
@@ -143,7 +143,7 @@ async def create_memo(
 @router.get("/{memo_id}", response_model=dict)
 async def get_memo(
     memo_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """Get a single memo by ID."""
     query = select(Memo).where(and_(Memo.id == memo_id, Memo.deleted_at.is_(None)))
@@ -167,7 +167,7 @@ async def get_memo(
 async def update_memo(
     memo_id: str,
     memo: MemoUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """Update a memo."""
     query = select(Memo).where(and_(Memo.id == memo_id, Memo.deleted_at.is_(None)))
@@ -252,7 +252,7 @@ async def update_memo(
 @router.delete("/{memo_id}", status_code=204)
 async def delete_memo(
     memo_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """Soft delete a memo."""
     query = select(Memo).where(and_(Memo.id == memo_id, Memo.deleted_at.is_(None)))

@@ -4,7 +4,7 @@ from sqlalchemy import select, and_, func, update
 from datetime import datetime
 from typing import Optional
 
-from app.core.database import get_db
+from app.core.database import get_db_from_header, DEFAULT_SESSION_ID
 from app.models.models import Direction, Decision, Memo
 from app.schemas.direction import (
     DirectionCreate,
@@ -33,7 +33,7 @@ async def list_directions(
     limit: int = Query(20, ge=1, le=100),
     sort_by: str = Query("created_at", pattern="^(created_at|title)$"),
     sort_order: str = Query("desc", pattern="^(asc|desc)$"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """List all directions with pagination."""
     # Build base query with soft delete filter
@@ -74,7 +74,7 @@ async def list_directions(
 @router.post("", status_code=201, response_model=dict)
 async def create_direction(
     direction: DirectionCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """Create a new direction."""
     # Check for duplicate title
@@ -109,7 +109,7 @@ async def create_direction(
 @router.get("/{direction_id}", response_model=dict)
 async def get_direction(
     direction_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """Get a single direction by ID."""
     query = select(Direction).where(
@@ -135,7 +135,7 @@ async def get_direction(
 async def update_direction(
     direction_id: str,
     direction: DirectionUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """Update a direction."""
     query = select(Direction).where(
@@ -191,7 +191,7 @@ async def update_direction(
 @router.delete("/{direction_id}", status_code=204)
 async def delete_direction(
     direction_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """Soft delete a direction."""
     query = select(Direction).where(
@@ -242,7 +242,7 @@ async def get_direction_with_details(
     decision_limit: int = Query(20, ge=1, le=100),
     memo_page: int = Query(1, ge=1),
     memo_limit: int = Query(20, ge=1, le=100),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """Get a direction with all associated decisions and memos."""
     # Get direction

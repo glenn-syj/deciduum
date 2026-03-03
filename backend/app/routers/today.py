@@ -4,7 +4,7 @@ from sqlalchemy import select, and_
 from datetime import date as date_obj, datetime
 from typing import Optional
 
-from app.core.database import get_db
+from app.core.database import get_db_from_header, DEFAULT_SESSION_ID
 from app.models.models import Decision, Memo
 from app.schemas.decision import DecisionResponse
 from app.schemas.memo import MemoResponse
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/today", tags=["today"])
 @router.get("", response_model=dict)
 async def get_today_view(
     date: str = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """Get today's view with ongoing decisions, today's decisions, and today's memos."""
     # Use provided date or default to today

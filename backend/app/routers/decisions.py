@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func
 from datetime import datetime, date
 from typing import Optional
 
-from app.core.database import get_db
+from app.core.database import get_db_from_header, DEFAULT_SESSION_ID
 from app.models.models import Decision, DecisionLog, Direction, Task, generate_uuid
 from app.schemas.decision import DecisionCreate, DecisionUpdate, DecisionResponse
 from app.schemas.decision_log import DecisionLogCreate, DecisionLogResponse
@@ -32,7 +32,7 @@ async def list_decisions(
     limit: int = Query(20, ge=1, le=100),
     sort_by: str = Query("created_at", pattern="^(date|created_at|title)$"),
     sort_order: str = Query("desc", pattern="^(asc|desc)$"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """List all decisions with filters and pagination."""
     # Build base query with soft delete filter
@@ -82,7 +82,7 @@ async def list_decisions(
 @router.post("", status_code=201, response_model=dict)
 async def create_decision(
     decision: DecisionCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """Create a new decision."""
     # Validate direction_id if provided
@@ -144,7 +144,7 @@ async def create_decision(
 @router.get("/{decision_id}", response_model=dict)
 async def get_decision(
     decision_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """Get a single decision by ID."""
     query = select(Decision).where(
@@ -170,7 +170,7 @@ async def get_decision(
 async def update_decision(
     decision_id: str,
     decision: DecisionUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """Update a decision."""
     query = select(Decision).where(
@@ -268,7 +268,7 @@ async def update_decision(
 @router.delete("/{decision_id}", status_code=204)
 async def delete_decision(
     decision_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """Soft delete a decision."""
     query = select(Decision).where(
@@ -305,7 +305,7 @@ async def list_decision_logs(
     limit: int = Query(20, ge=1, le=100),
     sort_by: str = Query("created_at", pattern="^(created_at)$"),
     sort_order: str = Query("desc", pattern="^(asc|desc)$"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """List all logs for a decision."""
     # Verify decision exists
@@ -366,7 +366,7 @@ async def list_decision_logs(
 async def create_decision_log(
     decision_id: str,
     log: DecisionLogCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """Create a new decision log."""
     # Verify decision exists
@@ -403,7 +403,7 @@ async def create_decision_log(
 async def get_decision_log(
     decision_id: str,
     log_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """Get a single decision log by ID."""
     # Verify decision exists
@@ -453,7 +453,7 @@ async def list_decision_tasks(
     limit: int = Query(20, ge=1, le=100),
     sort_by: str = Query("created_at", pattern="^(created_at|due_date|status)$"),
     sort_order: str = Query("desc", pattern="^(asc|desc)$"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """List all tasks for a decision."""
     # Verify decision exists
@@ -514,7 +514,7 @@ async def list_decision_tasks(
 async def create_decision_task(
     decision_id: str,
     task: TaskCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """Create a new task for a decision."""
     # Verify decision exists

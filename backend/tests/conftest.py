@@ -4,7 +4,7 @@ from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 
 from app.main import app
-from app.core.database import Base, get_db
+from app.core.database import Base, get_db, get_db_from_header
 from app.core.config import get_settings
 
 
@@ -41,7 +41,9 @@ async def client(db_session):
         finally:
             pass
 
+    # Override both the legacy get_db and the new session-based get_db_from_header
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_db_from_header] = override_get_db
 
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"

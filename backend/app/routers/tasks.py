@@ -4,7 +4,7 @@ from sqlalchemy import select, and_, func
 from datetime import datetime
 from typing import Optional
 
-from app.core.database import get_db
+from app.core.database import get_db_from_header, DEFAULT_SESSION_ID
 from app.models.models import Task, Decision
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse
 from app.schemas.common import PaginatedResponse
@@ -28,7 +28,7 @@ async def list_tasks(
     limit: int = Query(20, ge=1, le=100),
     sort_by: str = Query("created_at", pattern="^(created_at|due_date|status)$"),
     sort_order: str = Query("desc", pattern="^(asc|desc)$"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """List all tasks with filters and pagination."""
     # Build base query with soft delete filter
@@ -74,7 +74,7 @@ async def list_tasks(
 @router.post("", status_code=201, response_model=dict)
 async def create_task(
     task: TaskCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """Create a new task."""
     # Validate decision_id exists
@@ -114,7 +114,7 @@ async def create_task(
 @router.get("/{task_id}", response_model=dict)
 async def get_task(
     task_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """Get a single task by ID."""
     query = select(Task).where(and_(Task.id == task_id, Task.deleted_at.is_(None)))
@@ -138,7 +138,7 @@ async def get_task(
 async def update_task(
     task_id: str,
     task: TaskUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """Update a task."""
     query = select(Task).where(and_(Task.id == task_id, Task.deleted_at.is_(None)))
@@ -201,7 +201,7 @@ async def update_task(
 @router.delete("/{task_id}", status_code=204)
 async def delete_task(
     task_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_from_header),
 ):
     """Soft delete a task."""
     query = select(Task).where(and_(Task.id == task_id, Task.deleted_at.is_(None)))
