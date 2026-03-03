@@ -60,6 +60,53 @@ X-API-Key: your-api-key-here
 
 ---
 
+## Session-Based Routing
+
+When operating in server mode, the server routes requests to the appropriate session database using the `X-Session-ID` header.
+
+### Header Parameters
+
+| Header | Required | Default | Description |
+|--------|----------|---------|-------------|
+| `X-Session-ID` | No | `default` | Session identifier for multi-database routing |
+
+### Session Database Location
+
+Sessions are stored at: `~/.deciduum/sessions/{session_id}.db`
+
+### Example Request
+
+```http
+GET /v1/decisions HTTP/1.1
+Host: localhost:8000
+X-API-Key: your-api-key-here
+X-Session-ID: work
+```
+
+### Session Behavior
+
+- If the session database doesn't exist, it is auto-created
+- Each session has isolated data (decisions, memos, directions, tasks)
+- Switch between sessions by changing the `X-Session-ID` header
+
+### CLI Session Management
+
+```bash
+# List all sessions
+deciduum session list
+
+# Create a new session
+deciduum session create work
+
+# Use a specific session
+DECIDIUM_SESSION=work deciduum decisions list
+
+# Delete a session
+deciduum session delete work
+```
+
+---
+
 ## Common Query Parameters
 
 ### Pagination
@@ -112,7 +159,7 @@ GET /v1/decisions
 
 ```json
 {
-  "data": [
+  "decisions": [
     {
       "id": "550e8400-e29b-41d4-a716-446655440000",
       "title": "Define backend structure",
@@ -308,12 +355,13 @@ GET /v1/decisions/{decision_id}/logs
 
 ```json
 {
-  "data": [
+  "logs": [
     {
       "id": "550e8400-e29b-41d4-a716-446655440010",
       "decision_id": "550e8400-e29b-41d4-a716-446655440000",
       "type": "note",
       "content": "Initial decision to use FastAPI",
+      "source": "user",
       "created_at": "2026-02-17T10:30:00Z"
     }
   ],
@@ -428,7 +476,7 @@ GET /v1/memos
 
 ```json
 {
-  "data": [
+  "memos": [
     {
       "id": "550e8400-e29b-41d4-a716-446655440020",
       "content": "Thinking about the API structure...",
@@ -586,16 +634,18 @@ GET /v1/directions
 
 ```json
 {
-  "data": [
+  "directions": [
     {
       "id": "550e8400-e29b-41d4-a716-446655440001",
       "title": "Career Development",
+      "decision_count": 5,
       "created_at": "2026-01-15T09:00:00Z",
       "updated_at": "2026-01-15T09:00:00Z"
     },
     {
       "id": "550e8400-e29b-41d4-a716-446655440002",
       "title": "Health & Wellness",
+      "decision_count": 3,
       "created_at": "2026-01-20T10:00:00Z",
       "updated_at": "2026-01-20T10:00:00Z"
     }
@@ -796,39 +846,67 @@ GET /v1/today
 
 ```json
 {
-  "data": {
-    "date": "2026-02-17",
-    "ongoing_decisions": [
-      {
-        "id": "550e8400-e29b-41d4-a716-446655440000",
-        "title": "Define backend structure",
-        "date": "2026-02-15",
-        "status": "ongoing",
-        "review_at": null,
-        "direction_id": "550e8400-e29b-41d4-a716-446655440001"
-      }
-    ],
-    "todays_decisions": [
-      {
-        "id": "550e8400-e29b-41d4-a716-446655440003",
-        "title": "Choose database",
-        "date": "2026-02-17",
-        "status": "completed",
-        "review_at": null,
-        "direction_id": null
-      }
-    ],
-    "todays_memos": [
-      {
-        "id": "550e8400-e29b-41d4-a716-446655440020",
-        "content": "Initial thoughts on the project architecture",
-        "date": "2026-02-17",
-        "linked_decision_id": null,
-        "linked_direction_id": null,
-        "updated_at": "2026-02-17T11:00:00Z"
-      }
-    ]
-  }
+  "date": "2026-02-17",
+  "decision_count": 5,
+  "ongoing_decisions": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "title": "Define backend structure",
+      "date": "2026-02-15",
+      "status": "ongoing",
+      "review_at": null,
+      "direction_id": "550e8400-e29b-41d4-a716-446655440001",
+      "created_at": "2026-02-17T10:30:00Z",
+      "updated_at": "2026-02-17T10:30:00Z"
+    }
+  ],
+  "today_decisions": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440003",
+      "title": "Choose database",
+      "date": "2026-02-17",
+      "status": "completed",
+      "review_at": null,
+      "direction_id": null,
+      "created_at": "2026-02-17T09:00:00Z",
+      "updated_at": "2026-02-17T09:00:00Z"
+    }
+  ],
+  "memos": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440020",
+      "content": "Initial thoughts on the project architecture",
+      "date": "2026-02-17",
+      "linked_decision_id": null,
+      "linked_direction_id": null,
+      "created_at": "2026-02-17T11:00:00Z",
+      "updated_at": "2026-02-17T11:00:00Z"
+    }
+  ],
+  "recent_logs": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440010",
+      "decision_id": "550e8400-e29b-41d4-a716-446655440000",
+      "decision_title": "Define backend structure",
+      "type": "reflection",
+      "content": "Reconfirmed this direction after review",
+      "source": "user",
+      "created_at": "2026-02-18T14:00:00Z"
+    }
+  ],
+  "pending_tasks": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440030",
+      "title": "Set up database schema",
+      "status": "pending",
+      "due_date": "2026-02-20",
+      "decision_title": "Define backend structure",
+      "decision_id": "550e8400-e29b-41d4-a716-446655440000",
+      "notes": "Use SQLAlchemy with async support",
+      "created_at": "2026-02-17T10:30:00Z",
+      "updated_at": "2026-02-17T10:30:00Z"
+    }
+  ]
 }
 ```
 
@@ -859,7 +937,7 @@ GET /v1/tasks
 
 ```json
 {
-  "data": [
+  "tasks": [
     {
       "id": "550e8400-e29b-41d4-a716-446655440030",
       "title": "Set up database schema",
@@ -1065,6 +1143,7 @@ For detailed error codes and scenarios, see [errors.md](./errors.md).
 
 ## Version
 
-- **Version:** 1.0.0
-- **Last Updated:** 2026-02-17
+- **Version:** 1.1.0
+- **Last Updated:** 2026-03-03
+- **Changes:** Updated response formats to use resource keys (e.g., `decisions` instead of `data`), added session-based routing documentation
 - **Related:** [errors.md](./errors.md), [domain/entities.md](../domain/entities.md)

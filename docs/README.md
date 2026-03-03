@@ -4,6 +4,42 @@ Quick navigation guide for the Deciduum project.
 
 ---
 
+## Architecture Overview
+
+Deciduum uses a **CLI-first architecture** with session-based multi-database design.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Deciduum Architecture                     │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│   CLI (local SQLite)  ──primary──►  Server (HTTP adapter)   │
+│   - Offline-first                        - Auth (API key)  │
+│   - Owns domain model                   - Session routing  │
+│   - Full CRUD functionality             - Frontend API     │
+│                                                              │
+│   Sessions: ~/.deciduum/sessions/{session_id}.db           │
+│   Server routes via X-Session-ID header                     │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Dual-Mode Operation
+
+| Mode | Description |
+|------|-------------|
+| **Local Only** | CLI works directly with local SQLite database. No server required. |
+| **Server Mode** | CLI proxies requests through optional FastAPI server for multi-device sync. |
+
+### Session-Based Multi-Database
+
+- Each session is a separate SQLite database at `~/.deciduum/sessions/{session_id}.db`
+- Default session: `default`
+- Switch sessions via `DECIDIUM_SESSION` environment variable
+- Server routes requests to the correct database via `X-Session-ID` header
+
+---
+
 ## Documentation Structure
 
 ```
@@ -33,6 +69,7 @@ docs/
 | **DecisionLog** | Evolving reasoning around a decision (append-only) |
 | **Memo** | An unstructured thought or cognitive note |
 | **Direction** | A long-term contextual grouping |
+| **Task** | A sub-task action item linked to a Decision |
 
 ### API Base URL
 
@@ -44,6 +81,12 @@ docs/
 
 ```
 Header: X-API-Key
+```
+
+### Session Routing (Server Mode)
+
+```
+Header: X-Session-ID (default: "default")
 ```
 
 ### Key Endpoints
@@ -66,6 +109,34 @@ Header: X-API-Key
 
 ---
 
+## Session Management
+
+### CLI Commands
+
+```bash
+# List all sessions
+deciduum session list
+
+# Create a new session
+deciduum session create work
+
+# Switch to a session (via environment variable)
+DECIDIUM_SESSION=work deciduum decisions list
+
+# Delete a session
+deciduum session delete work
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DECIDIUM_SESSION` | `default` | Session ID for multi-database |
+| `DECIDIUM_SERVER_URL` | - | Server URL for server mode |
+| `DECIDIUM_API_KEY` | - | API key for server authentication |
+
+---
+
 ## Reading Order
 
 ### For AI/Agent Context
@@ -85,5 +156,6 @@ Header: X-API-Key
 
 ## Version
 
-- **Current Version:** 1.0.0
-- **Last Updated:** 2026-02-17
+- **Current Version:** 1.1.0
+- **Last Updated:** 2026-03-03
+- **Changes:** CLI-first architecture with session-based multi-database design
