@@ -7,7 +7,7 @@ import typer
 from typer import Option, Argument
 
 from deciduum.database import get_db, is_server_mode
-from deciduum.server_client import api_request, ServerClientError
+from deciduum.server_client import api_request, ServerClientError, unwrap_response
 from deciduum.models import Task
 
 tasks_app = typer.Typer(help="Tasks CRUD commands.")
@@ -36,7 +36,16 @@ def list_tasks(
             if decision_id:
                 params["decision_id"] = decision_id
             result = api_request("GET", "/api/tasks", params=params)
-            tasks = result.get("tasks", [])
+            # Handle both {"tasks": [...]} and {"data": {"tasks": [...]}}
+            if isinstance(result, dict):
+                if "tasks" in result:
+                    tasks = result.get("tasks", [])
+                elif "data" in result:
+                    tasks = result.get("data", {}).get("tasks", [])
+                else:
+                    tasks = []
+            else:
+                tasks = []
 
             if not tasks:
                 typer.echo("No tasks found.")
@@ -115,8 +124,9 @@ def add_task(
             if notes:
                 data["notes"] = notes
             result = api_request("POST", "/api/tasks", data=data)
-            typer.echo(f"Created task: {result.get('id')}")
-            return result.get("id")
+            data = unwrap_response(result, {})
+            typer.echo(f"Created task: {data.get('id')}")
+            return data.get("id")
         except ServerClientError as e:
             _handle_server_mode(e)
         return
@@ -156,7 +166,7 @@ def show_task(
     if is_server_mode():
         try:
             result = api_request("GET", f"/api/tasks/{task_id}")
-            t = result
+            t = unwrap_response(result, {})
 
             typer.echo(f"ID: {t.get('id')}")
             typer.echo(f"Title: {t.get('title')}")
@@ -198,7 +208,7 @@ def complete_task(
     """Mark a task as completed."""
     if is_server_mode():
         try:
-            api_request("PUT", f"/api/tasks/{task_id}", data={"status": "completed"})
+            api_request("PATCH", f"/api/tasks/{task_id}", data={"status": "completed"})
             typer.echo(f"Completed task '{task_id}'.")
         except ServerClientError as e:
             _handle_server_mode(e)
@@ -289,7 +299,7 @@ def update_task(
                 data["due_date"] = due_date
             if notes is not None:
                 data["notes"] = notes
-            api_request("PUT", f"/api/tasks/{task_id}", data=data)
+            api_request("PATCH", f"/api/tasks/{task_id}", data=data)
             typer.echo(f"Updated task '{task_id}'.")
         except ServerClientError as e:
             _handle_server_mode(e)

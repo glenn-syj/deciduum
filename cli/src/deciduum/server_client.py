@@ -8,6 +8,24 @@ import httpx
 from deciduum.config import get_server_config, get_config_value
 
 
+def unwrap_response(result: Any, default: Any = None) -> Any:
+    """Unwrap response, handling both {"data": ...} and direct formats.
+
+    Args:
+        result: The response from the API (could be dict or list).
+        default: Default value to return if result is None.
+
+    Returns:
+        The unwrapped data, or default if result is None.
+    """
+    if result is None:
+        return default
+    if isinstance(result, dict):
+        if "data" in result:
+            return result["data"]
+    return result
+
+
 # Global HTTP client instance
 _http_client: Optional[httpx.Client] = None
 
@@ -87,6 +105,10 @@ def api_request(
         raise ServerClientError(
             "Server URL not configured. Run 'deciduum config set server_url <url>'"
         )
+
+    # Convert /api prefix to /v1 for server compatibility
+    if endpoint.startswith("/api"):
+        endpoint = "/v1" + endpoint[4:]
 
     # Build headers
     headers = {}

@@ -7,7 +7,7 @@ import typer
 from typer import Option, Argument
 
 from deciduum.database import get_db, is_server_mode
-from deciduum.server_client import api_request, ServerClientError
+from deciduum.server_client import api_request, ServerClientError, unwrap_response
 from deciduum.models import Decision, DecisionLog
 
 logs_app = typer.Typer(help="Decision logs commands.")
@@ -50,8 +50,9 @@ def add_log(
                 "source": source,
             }
             result = api_request("POST", "/api/logs", data=data)
-            typer.echo(f"Created log entry: {result.get('id')}")
-            return result.get("id")
+            data = unwrap_response(result, {})
+            typer.echo(f"Created log entry: {data.get('id')}")
+            return data.get("id")
         except ServerClientError as e:
             _handle_server_mode(e)
         return
@@ -96,13 +97,15 @@ def list_logs(
     """List all logs for a decision."""
     if is_server_mode():
         try:
-            result = api_request(
+            logs_result = api_request(
                 "GET", f"/api/decisions/{decision_id}/logs", params={"limit": limit}
             )
-            logs = result.get("logs", [])
+            logs_data = unwrap_response(logs_result, {})
+            logs = logs_data.get("logs", []) if isinstance(logs_data, dict) else []
 
             # Get decision info
             decision_result = api_request("GET", f"/api/decisions/{decision_id}")
+            decision = unwrap_response(decision_result, {})
 
             if not logs:
                 typer.echo(f"No logs found for decision '{decision_id}'.")
@@ -208,8 +211,12 @@ def journey_command(decision_id: str):
     if is_server_mode():
         try:
             result = api_request("GET", f"/api/decisions/{decision_id}")
-            decision = result
-            logs = result.get("logs", [])
+            decision = unwrap_response(result, {})
+
+            # Fetch logs separately
+            logs_result = api_request("GET", f"/api/decisions/{decision_id}/logs")
+            logs_data = unwrap_response(logs_result, {})
+            logs = logs_data.get("logs", []) if isinstance(logs_data, dict) else []
 
             # Display journey header
             typer.echo(f"=== Decision Journey ===\n")

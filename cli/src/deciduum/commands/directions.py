@@ -7,7 +7,7 @@ import typer
 from typer import Option, Argument
 
 from deciduum.database import get_db, is_server_mode
-from deciduum.server_client import api_request, ServerClientError
+from deciduum.server_client import api_request, ServerClientError, unwrap_response
 from deciduum.models import Direction
 
 directions_app = typer.Typer(help="Directions CRUD commands.")
@@ -27,7 +27,16 @@ def list_directions(
     if is_server_mode():
         try:
             result = api_request("GET", "/api/directions", params={"limit": limit})
-            directions = result.get("directions", [])
+            # Handle both {"directions": [...]} and {"data": {"directions": [...]}}
+            if isinstance(result, dict):
+                if "directions" in result:
+                    directions = result.get("directions", [])
+                elif "data" in result:
+                    directions = result.get("data", [])
+                else:
+                    directions = []
+            else:
+                directions = []
 
             if not directions:
                 typer.echo("No directions found.")
@@ -72,8 +81,9 @@ def add_direction(
     if is_server_mode():
         try:
             result = api_request("POST", "/api/directions", data={"title": title})
-            typer.echo(f"Created direction: {result.get('id')}")
-            return result.get("id")
+            data = unwrap_response(result, {})
+            typer.echo(f"Created direction: {data.get('id')}")
+            return data.get("id")
         except ServerClientError as e:
             _handle_server_mode(e)
         return
@@ -99,7 +109,7 @@ def show_direction(
     if is_server_mode():
         try:
             result = api_request("GET", f"/api/directions/{direction_id}")
-            d = result
+            d = unwrap_response(result, {})
 
             typer.echo(f"ID: {d.get('id')}")
             typer.echo(f"Title: {d.get('title')}")
@@ -187,7 +197,7 @@ def update_direction(
             data = {}
             if title is not None:
                 data["title"] = title
-            api_request("PUT", f"/api/directions/{direction_id}", data=data)
+            api_request("PATCH", f"/api/directions/{direction_id}", data=data)
             typer.echo(f"Updated direction '{direction_id}'.")
         except ServerClientError as e:
             _handle_server_mode(e)

@@ -7,7 +7,7 @@ import typer
 from typer import Option, Argument
 
 from deciduum.database import get_db, is_server_mode
-from deciduum.server_client import api_request, ServerClientError
+from deciduum.server_client import api_request, ServerClientError, unwrap_response
 from deciduum.models import Decision, DecisionLog
 
 decisions_app = typer.Typer(help="Decisions CRUD commands.")
@@ -31,7 +31,16 @@ def list_decisions(
             if status:
                 params["status"] = status
             result = api_request("GET", "/api/decisions", params=params)
-            decisions = result.get("decisions", [])
+            # Handle both {"decisions": [...]} and {"data": {"decisions": [...]}}
+            if isinstance(result, dict):
+                if "decisions" in result:
+                    decisions = result.get("decisions", [])
+                elif "data" in result:
+                    decisions = result.get("data", {}).get("decisions", [])
+                else:
+                    decisions = []
+            else:
+                decisions = []
 
             if not decisions:
                 typer.echo("No decisions found.")
@@ -101,8 +110,9 @@ def add_decision(
             if direction:
                 data["direction_id"] = direction
             result = api_request("POST", "/api/decisions", data=data)
-            typer.echo(f"Created decision: {result.get('id')}")
-            return result.get("id")
+            data = unwrap_response(result, {})
+            typer.echo(f"Created decision: {data.get('id')}")
+            return data.get("id")
         except ServerClientError as e:
             _handle_server_mode(e)
         return
@@ -132,7 +142,7 @@ def show_decision(
     if is_server_mode():
         try:
             result = api_request("GET", f"/api/decisions/{decision_id}")
-            d = result
+            d = unwrap_response(result, {})
 
             typer.echo(f"ID: {d.get('id')}")
             typer.echo(f"Title: {d.get('title')}")
@@ -261,7 +271,7 @@ def update_decision(
             if review_at is not None:
                 data["review_at"] = review_at
 
-            api_request("PUT", f"/api/decisions/{decision_id}", data=data)
+            api_request("PATCH", f"/api/decisions/{decision_id}", data=data)
             typer.echo(f"Updated decision '{decision_id}'.")
         except ServerClientError as e:
             _handle_server_mode(e)

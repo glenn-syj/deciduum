@@ -7,7 +7,7 @@ import typer
 from typer import Option, Argument
 
 from deciduum.database import get_db, is_server_mode
-from deciduum.server_client import api_request, ServerClientError
+from deciduum.server_client import api_request, ServerClientError, unwrap_response
 from deciduum.models import Memo, Decision
 
 memos_app = typer.Typer(help="Memos CRUD commands.")
@@ -31,7 +31,16 @@ def list_memos(
             if date:
                 params["date"] = date
             result = api_request("GET", "/api/memos", params=params)
-            memos = result.get("memos", [])
+            # Handle both {"memos": [...]} and {"data": {"memos": [...]}}
+            if isinstance(result, dict):
+                if "memos" in result:
+                    memos = result.get("memos", [])
+                elif "data" in result:
+                    memos = result.get("data", {}).get("memos", [])
+                else:
+                    memos = []
+            else:
+                memos = []
 
             if not memos:
                 typer.echo("No memos found.")
@@ -114,8 +123,9 @@ def add_memo(
             if direction_id:
                 data["linked_direction_id"] = direction_id
             result = api_request("POST", "/api/memos", data=data)
-            typer.echo(f"Created memo: {result.get('id')}")
-            return result.get("id")
+            data = unwrap_response(result, {})
+            typer.echo(f"Created memo: {data.get('id')}")
+            return data.get("id")
         except ServerClientError as e:
             _handle_server_mode(e)
         return
@@ -146,7 +156,7 @@ def show_memo(
     if is_server_mode():
         try:
             result = api_request("GET", f"/api/memos/{memo_id}")
-            m = result
+            m = unwrap_response(result, {})
 
             typer.echo(f"ID: {m.get('id')}")
             typer.echo(f"Date: {m.get('date')}")
@@ -244,7 +254,7 @@ def update_memo(
                 data["linked_decision_id"] = decision_id
             if direction_id is not None:
                 data["linked_direction_id"] = direction_id
-            api_request("PUT", f"/api/memos/{memo_id}", data=data)
+            api_request("PATCH", f"/api/memos/{memo_id}", data=data)
             typer.echo(f"Updated memo '{memo_id}'.")
         except ServerClientError as e:
             _handle_server_mode(e)
