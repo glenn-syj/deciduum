@@ -492,5 +492,5 @@ UPDATE decisions SET deleted_at = NULL WHERE id = '...'
 ## Version
 
 - **Version:** 1.1.0
-- **Last Updated:** 2026-02-18
-- **Related:** [status.md](./status.md), [api/endpoints.md](../api/endpoints.md), [implementation/schema.md](../implementation/schema.md), [implementation/tasks.md](../implementation/tasks.md)
+- **Last Updated:** 2026-03-03
+- **Related:** [status.md](./status.md), [api/endpoints.md](../api/endpoints.md), [implementation/schema.md](../implementation/schema.md)

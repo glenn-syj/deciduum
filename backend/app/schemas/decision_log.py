@@ -11,6 +11,10 @@ class DecisionLogBase(BaseModel):
 
 
 class DecisionLogCreate(DecisionLogBase):
+    decision_id: str = Field(
+        ..., description="UUID of the decision to attach this log to"
+    )
+
     @model_validator(mode="after")
     def validate_source_for_state_change(self):
         if self.type == "state_change" and self.source != "system":

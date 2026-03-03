@@ -122,9 +122,9 @@ export default function Memos() {
     );
   }
 
-  const memos = memosData?.data || [];
-  const decisions = decisionsData?.data || [];
-  const directions = directionsData?.data || [];
+  const memos = memosData?.memos || [];
+  const decisions = decisionsData?.decisions || [];
+  const directions = directionsData?.directions || [];
 
   return (
     <div className="page">

@@ -10,12 +10,47 @@ Deciduum is a time-based decision and cognition log designed as a personal tool 
 
 > Deciduum is a space for recording and tracking conscious decisions and their processes, naturally capturing the flow of thoughts (Memos) and choices (Decisions).
 
+### Architecture: CLI-First Design
+
+Deciduum uses a **CLI-first architecture** with session-based multi-database design:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Deciduum Architecture                     │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│   CLI (local SQLite)  ──primary──►  Server (HTTP adapter)   │
+│   - Offline-first                        - Auth (API key)  │
+│   - Owns domain model                   - Session routing  │
+│   - Full CRUD functionality             - Frontend API     │
+│                                                              │
+│   Sessions: ~/.deciduum/sessions/{session_id}.db           │
+│   Server routes via X-Session-ID header                     │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Dual-Mode Operation
+
+| Mode | Description |
+|------|-------------|
+| **Local Only** | CLI works directly with local SQLite database. No server required. Full offline functionality. |
+| **Server Mode** | CLI proxies requests through optional FastAPI server for multi-device access. Server acts as HTTP adapter. |
+
+#### Session-Based Multi-Database
+
+- Each session is a separate SQLite database at `~/.deciduum/sessions/{session_id}.db`
+- Default session: `default`
+- Switch sessions via `DECIDIUM_SESSION` environment variable
+- Server routes requests to the correct database via `X-Session-ID` header
+
 ### Core Entities
 
 - **Thoughts (Memo)**: Unstructured cognitive notes
 - **Conscious choices (Decision)**: Time-stamped decision events
 - **Evolving context (DecisionLog)**: Append-only reasoning and reflections
 - **Long-term groupings (Direction)**: Optional contextual categorization
+- **Tasks (Task)**: Sub-task action items linked to Decisions
 
 ### Design Principles
 
@@ -401,16 +436,23 @@ Simple API Key authentication mechanism for single-user deployments:
 
 ### 6.5 Response Formats
 
-**Success Response:**
+**List Response (collection endpoints):**
 ```json
 {
-  "data": { ... },
+  "decisions": [ ... ],
   "meta": {
     "page": 1,
     "limit": 20,
     "total": 100,
     "total_pages": 5
   }
+}
+```
+
+**Single Resource Response:**
+```json
+{
+  "data": { ... }
 }
 ```
 
@@ -424,6 +466,16 @@ Simple API Key authentication mechanism for single-user deployments:
   }
 }
 ```
+
+### 6.6 Session-Based Routing
+
+When operating in server mode, the server routes requests to the appropriate session database:
+
+| Header | Required | Default | Description |
+|--------|----------|---------|-------------|
+| `X-Session-ID` | No | `default` | Session identifier for multi-database routing |
+
+The server reads the `X-Session-ID` header and routes the request to `~/.deciduum/sessions/{session_id}.db`. If the database doesn't exist, it is auto-created.
 
 ---
 

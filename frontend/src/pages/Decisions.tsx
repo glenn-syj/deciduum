@@ -50,7 +50,7 @@ export default function Decisions() {
     },
   });
 
-  const directions = directionsData?.data || [];
+  const directions = directionsData?.directions || [];
   const directionMap = useMemo(() => {
     const map: Record<string, string> = {};
     directions.forEach(dir => {
@@ -159,7 +159,7 @@ export default function Decisions() {
     );
   }
 
-  const decisions = decisionsData?.data || [];
+  const decisions = decisionsData?.decisions || [];
 
   return (
     <div className="page">
@@ -299,7 +299,7 @@ function DecisionItem({
     },
     enabled: !!decision.id,
   });
-  const logs: DecisionLog[] = logsData?.data || [];
+  const logs: DecisionLog[] = logsData?.logs || [];
 
   const createLogMutation = useMutation({
     mutationFn: ({ decisionId, data }: { decisionId: string; data: NewLogData }) =>

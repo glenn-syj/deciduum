@@ -32,7 +32,7 @@ export default function Today() {
     queryKey: ['today'],
     queryFn: async () => {
       const response = await todayApi.get();
-      return response.data.data;
+      return response.data;
     },
   });
 
@@ -47,7 +47,7 @@ export default function Today() {
       const logPromises = ongoingDecisionIds.map(async (decisionId) => {
         try {
           const response = await decisionsApi.listLogs(decisionId, { limit: 10 });
-          return response.data.data.map(log => ({
+          return response.data.logs.map(log => ({
             ...log,
             decisionTitle: data?.ongoing_decisions?.find(d => d.id === decisionId)?.title || 'Unknown'
           }));
@@ -107,10 +107,10 @@ export default function Today() {
         )}
         <div></div>
         <div>{`--- Today's Decisions ---`}</div>
-        {today?.todays_decisions?.length === 0 ? (
+        {today?.today_decisions?.length === 0 ? (
           <div>&lt;No decisions made today&gt;</div>
         ) : (
-          today?.todays_decisions?.map((decision: Decision) => (
+          today?.today_decisions?.map((decision: Decision) => (
             <div key={decision.id}>
               {`[${decision.status}] ${decision.title} `}
               <Link to={`/decisions`} className="terminal-link">[view]</Link>
@@ -119,10 +119,10 @@ export default function Today() {
         )}
         <div></div>
         <div>{`--- Today's Memos ---`}</div>
-        {today?.todays_memos?.length === 0 ? (
+        {today?.memos?.length === 0 ? (
           <div>&lt;No memos today&gt;</div>
         ) : (
-          today?.todays_memos?.map((memo: Memo) => (
+          today?.memos?.map((memo: Memo) => (
             <div key={memo.id}>
               {`- ${memo.content} `}
               <Link to={`/memos`} className="terminal-link">[view]</Link>
