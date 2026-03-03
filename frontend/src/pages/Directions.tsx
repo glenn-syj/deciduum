@@ -113,7 +113,7 @@ export default function Directions() {
     );
   }
 
-  const directions = directionsData?.data || [];
+  const directions = directionsData?.directions || [];
 
   return (
     <div className="page">
