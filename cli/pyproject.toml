@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deciduum"
+version = "0.1.0"
+description = "Decision tracking CLI with session-based multi-database architecture"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "typer>=0.12.0",
+    "sqlalchemy>=2.0.0",
+    "aiosqlite>=0.19.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "rich>=13.0.0",
+    "httpx>=0.25.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.scripts]
+deciduum = "deciduum.__main__:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
