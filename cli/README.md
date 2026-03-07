@@ -56,7 +56,7 @@ Sessions allow you to keep separate databases for different contexts:
 deciduum session create work
 
 # Use a specific session
-DECIDIUM_SESSION=work deciduum decisions list
+DECIDUUM_SESSION=work deciduum decisions list
 ```
 
 ## License

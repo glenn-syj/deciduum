@@ -43,7 +43,7 @@ deciduum [OPTIONS] COMMAND [ARGS]...
 ```
 
 Global options:
-- `-s, --session TEXT` - Session ID (default: from $DECIDIUM_SESSION or 'default')
+- `-s, --session TEXT` - Session ID (default: from $DECIDUUM_SESSION or 'default')
 
 ## Sessions
 
@@ -68,11 +68,11 @@ deciduum session delete work
 deciduum session path work
 ```
 
-Switch sessions using the `--session` flag or `DECIDIUM_SESSION` environment variable:
+Switch sessions using the `--session` flag or `DECIDUUM_SESSION` environment variable:
 
 ```bash
 deciduum --session work today
-DECIDIUM_SESSION=work deciduum today
+DECIDUUM_SESSION=work deciduum today
 ```
 
 ## Configuration
@@ -373,9 +373,9 @@ Output shows:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `DECIDIUM_SESSION` | Session ID | `default` |
-| `DECIDIUM_SERVER_URL` | Server URL (enables server mode) | - |
-| `DECIDIUM_API_KEY` | API key for server mode | - |
+| `DECIDUUM_SESSION` | Session ID | `default` |
+| `DECIDUUM_SERVER_URL` | Server URL (enables server mode) | - |
+| `DECIDUUM_API_KEY` | API key for server mode | - |
 
 ## Data Storage
 

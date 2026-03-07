@@ -99,7 +99,7 @@ deciduum session list
 deciduum session create work
 
 # Use a specific session
-DECIDIUM_SESSION=work deciduum decisions list
+DECIDUUM_SESSION=work deciduum decisions list
 
 # Delete a session
 deciduum session delete work

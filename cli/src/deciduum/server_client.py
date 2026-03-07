@@ -62,7 +62,7 @@ def get_server_client() -> httpx.Client:
         headers["X-API-Key"] = server_config.api_key
 
     # Add session ID from environment or CLI option
-    session_id = os.environ.get("DECIDIUM_SESSION", "default")
+    session_id = os.environ.get("DECIDUUM_SESSION", "default")
     headers["X-Session-ID"] = session_id
 
     _http_client = httpx.Client(
@@ -76,7 +76,7 @@ def get_server_client() -> httpx.Client:
 
 def get_session_id() -> str:
     """Get the session ID for API requests."""
-    return os.environ.get("DECIDIUM_SESSION", "default")
+    return os.environ.get("DECIDUUM_SESSION", "default")
 
 
 def api_request(
@@ -117,7 +117,7 @@ def api_request(
         headers["X-API-Key"] = server_config.api_key
 
     # Add session ID from environment or CLI option
-    session_id = os.environ.get("DECIDIUM_SESSION", "default")
+    session_id = os.environ.get("DECIDUUM_SESSION", "default")
     headers["X-Session-ID"] = session_id
 
     # Make the request

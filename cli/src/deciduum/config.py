@@ -26,7 +26,7 @@ class ServerConfig(BaseSettings):
     )
 
     class Config:
-        env_prefix = "DECIDIUM_"
+        env_prefix = "DECIDUUM_"
         extra = "ignore"
 
 
@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     )
 
     class Config:
-        env_prefix = "DECIDIUM_"
+        env_prefix = "DECIDUUM_"
         env_file = ".env"
         extra = "ignore"
 
@@ -99,7 +99,7 @@ def unset_config_value(key: str) -> None:
 
 def get_session_id() -> str:
     """Get the session ID from environment variable or default."""
-    return os.environ.get("DECIDIUM_SESSION", "default")
+    return os.environ.get("DECIDUUM_SESSION", "default")
 
 
 def get_sessions_dir() -> Path:

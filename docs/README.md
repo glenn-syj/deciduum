@@ -98,8 +98,8 @@ deciduum/
 | `deciduum session create <name>` | Create a new session |
 | `deciduum session list` | List all sessions |
 
-Use `DECIDIUM_SESSION=<name>` to switch sessions:
+Use `DECIDUUM_SESSION=<name>` to switch sessions:
 
 ```bash
-DECIDIUM_SESSION=work deciduum decisions list
+DECIDUUM_SESSION=work deciduum decisions list
 ```
