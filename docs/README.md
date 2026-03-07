@@ -32,7 +32,7 @@ Deciduum (decide + continuum) — the ongoing journey of decisions over time.
 ## Installation
 
 ```bash
-pip install deciduum
+pipx install deciduum
 ```
 
 Verify installation:
