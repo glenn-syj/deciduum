@@ -23,9 +23,9 @@ Before running integration tests, ensure you have:
 
 | Variable | Description | Required For |
 |----------|-------------|--------------|
-| `DECIDIUM_API_KEY` | API key for server authentication | Server mode |
-| `DECIDIUM_SESSION` | Session ID for multi-database isolation | Both modes |
-| `DECIDIUM_SERVER_URL` | Server URL (alternative to config file) | Server mode |
+| `DECIDUUM_API_KEY` | API key for server authentication | Server mode |
+| `DECIDUUM_SESSION` | Session ID for multi-database isolation | Both modes |
+| `DECIDUUM_SERVER_URL` | Server URL (alternative to config file) | Server mode |
 
 ### Project Structure
 
@@ -165,7 +165,7 @@ For now, integration testing is performed manually by running the CLI against a 
 cd backend
 
 # Set the API key (optional but recommended)
-export DECIDIUM_API_KEY="test-api-key-123"
+export DECIDUUM_API_KEY="test-api-key-123"
 
 # Start the server
 uvicorn app.main:app --reload --port 8000
@@ -191,7 +191,7 @@ Configure the CLI to connect to your local server:
 # Set the server URL
 deciduum config set server_url http://localhost:8000
 
-# Set the API key (must match server's DECIDIUM_API_KEY)
+# Set the API key (must match server's DECIDUUM_API_KEY)
 deciduum config set api_key test-api-key-123
 
 # Verify configuration
@@ -349,23 +349,23 @@ Test that different session IDs create isolated databases.
 **Setup**:
 ```bash
 # Start with session A
-export DECIDIUM_SESSION=session-a
+export DECIDUUM_SESSION=session-a
 deciduum decisions add --title "Decision in Session A"
 
 # Switch to session B
-export DECIDIUM_SESSION=session-b
+export DECIDUUM_SESSION=session-b
 deciduum decisions add --title "Decision in Session B"
 ```
 
 **Verification**:
 ```bash
 # Session A should only see its decisions
-export DECIDIUM_SESSION=session-a
+export DECIDUUM_SESSION=session-a
 deciduum decisions list
 # Should show: "Decision in Session A"
 
 # Session B should only see its decisions
-export DECIDIUM_SESSION=session-b
+export DECIDUUM_SESSION=session-b
 deciduum decisions list
 # Should show: "Decision in Session B"
 ```
@@ -377,7 +377,7 @@ Test that the server properly validates API keys.
 **Setup**:
 ```bash
 # Start server with API key requirement
-export DECIDIUM_API_KEY="secret-key-123"
+export DECIDUUM_API_KEY="secret-key-123"
 uvicorn app.main:app --port 8000
 ```
 
@@ -435,7 +435,7 @@ deciduum config unset server_url
 # Check current configuration
 deciduum config show
 
-# Set correct API key (must match server's DECIDIUM_API_KEY)
+# Set correct API key (must match server's DECIDUUM_API_KEY)
 deciduum config set api_key YOUR_API_KEY
 ```
 
@@ -460,7 +460,7 @@ uvicorn app.main:app --port 8000
 **Solution**:
 ```bash
 # Initialize the database for your session
-export DECIDIUM_SESSION=my-session
+export DECIDUUM_SESSION=my-session
 deciduum decisions list  # This initializes the DB
 ```
 
@@ -470,8 +470,8 @@ deciduum decisions list  # This initializes the DB
 
 **Solution**:
 ```bash
-# Ensure DECIDIUM_SESSION environment variable is set correctly
-echo $DECIDIUM_SESSION
+# Ensure DECIDUUM_SESSION environment variable is set correctly
+echo $DECIDUUM_SESSION
 
 # Use explicit session flag if available
 deciduum --session my-session decisions list

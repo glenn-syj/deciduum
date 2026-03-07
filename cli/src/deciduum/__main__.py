@@ -51,7 +51,7 @@ def get_active_session() -> str:
     db_manager.init_database()
 
     # Set environment variable for child processes
-    os.environ["DECIDIUM_SESSION"] = session_id
+    os.environ["DECIDUUM_SESSION"] = session_id
 
     return session_id
 
@@ -63,16 +63,21 @@ def main(
         None,
         "--session",
         "-s",
-        help="Session ID (default: from $DECIDIUM_SESSION or 'default')",
+        help="Session ID (default: from $DECIDUUM_SESSION or 'default')",
     ),
 ):
     """Deciduum CLI - Decision tracking application."""
     # Handle session option
     if session:
-        os.environ["DECIDIUM_SESSION"] = session
+        os.environ["DECIDUUM_SESSION"] = session
 
-    # Initialize session database
-    get_active_session()
+    # Get the command being invoked
+    command_name = ctx.invoked_subcommand
+
+    # Skip session initialization for session and config management commands
+    # These commands handle their own session initialization
+    if command_name not in ("session", "config"):
+        get_active_session()
 
 
 if __name__ == "__main__":

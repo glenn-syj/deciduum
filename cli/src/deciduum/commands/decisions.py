@@ -119,10 +119,20 @@ def add_decision(
 
     db = get_db()
     try:
+        # Validate direction if provided
+        if direction:
+            from deciduum.models import Direction
+
+            dir_obj = db.query(Direction).filter(Direction.id == direction).first()
+            if not dir_obj:
+                typer.echo(f"Direction '{direction}' not found.", err=True)
+                raise typer.Exit(1)
+
         decision = Decision(
             title=title,
             date=date or datetime.now().strftime("%Y-%m-%d"),
             status=status,
+            direction_id=direction,
         )
         db.add(decision)
         db.commit()

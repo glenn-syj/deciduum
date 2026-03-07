@@ -131,3 +131,16 @@ def get_db() -> Session:
             "Database manager not initialized. Call get_db_manager() first."
         )
     return _db_manager.create_session()
+
+
+def reset_db_manager() -> None:
+    """Reset the global database manager to None.
+
+    This function is primarily used in tests to ensure clean state
+    between test cases by closing any existing engine connections
+    and resetting the global _db_manager variable.
+    """
+    global _db_manager
+    if _db_manager is not None:
+        _db_manager.close()
+    _db_manager = None

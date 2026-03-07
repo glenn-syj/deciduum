@@ -8,6 +8,8 @@ version = "0.1.0"
 description = "Decision tracking CLI with session-based multi-database architecture"
 readme = "README.md"
 requires-python = ">=3.11"
+authors = [{name = "Yeongjun Son", email = "glenn.syj@gmail.com"}]
+license = {text = "MIT"}
 dependencies = [
     "typer>=0.12.0",
     "sqlalchemy>=2.0.0",
@@ -23,9 +25,16 @@ dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
 ]
+server = [
+    "uvicorn>=0.24.0",
+]
 
 [project.scripts]
 deciduum = "deciduum.__main__:app"
+
+[project.urls]
+Homepage = "https://github.com/glenn-syj/deciduum"
+Repository = "https://github.com/glenn-syj/deciduum"
 
 [tool.setuptools.packages.find]
 where = ["src"]

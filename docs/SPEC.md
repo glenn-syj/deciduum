@@ -41,7 +41,7 @@ Deciduum uses a **CLI-first architecture** with session-based multi-database des
 
 - Each session is a separate SQLite database at `~/.deciduum/sessions/{session_id}.db`
 - Default session: `default`
-- Switch sessions via `DECIDIUM_SESSION` environment variable
+- Switch sessions via `DECIDUUM_SESSION` environment variable
 - Server routes requests to the correct database via `X-Session-ID` header
 
 ### Core Entities
