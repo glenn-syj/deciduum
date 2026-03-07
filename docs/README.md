@@ -1,5 +1,7 @@
 # Deciduum
 
+[![PyPI Version](https://img.shields.io/pypi/v/deciduum)](https://pypi.org/project/deciduum/0.1.1/) ![Python Version](https://img.shields.io/badge/python-3.11+-blue)
+
 A time-based decision and cognition log that captures decisions and their reasoning — forming a foundation for future thinking and action.
 
 Deciduum (decide + continuum) — the ongoing journey of decisions over time.
@@ -29,13 +31,9 @@ Deciduum (decide + continuum) — the ongoing journey of decisions over time.
 
 ## Installation
 
-Install the Deciduum CLI in editable mode:
-
 ```bash
-pip install -e cli/
+pip install deciduum
 ```
-
-- `-e` (editable): Changes to source code take effect immediately without reinstalling
 
 Verify installation:
 
@@ -64,6 +62,16 @@ deciduum today
 # Create a new session (separate database)
 deciduum session create work
 ```
+
+## Development Installation
+
+For local development, install in editable mode:
+
+```bash
+pip install -e cli/
+```
+
+- `-e` (editable): Changes to source code take effect immediately without reinstalling
 
 ## Architecture
 
