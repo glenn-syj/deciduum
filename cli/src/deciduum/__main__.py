@@ -71,8 +71,13 @@ def main(
     if session:
         os.environ["DECIDUUM_SESSION"] = session
 
-    # Initialize session database
-    get_active_session()
+    # Get the command being invoked
+    command_name = ctx.invoked_subcommand
+
+    # Skip session initialization for session and config management commands
+    # These commands handle their own session initialization
+    if command_name not in ("session", "config"):
+        get_active_session()
 
 
 if __name__ == "__main__":
