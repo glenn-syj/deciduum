@@ -4,6 +4,8 @@ A time-based decision and cognition log that captures decisions and their reason
 
 Deciduum (decide + continuum) — the ongoing journey of decisions over time.
 
+For more information, visit: [https://github.com/glenn-syj/deciduum/blob/main/docs/README.md](https://github.com/glenn-syj/deciduum/blob/main/docs/README.md)
+
 ## Installation
 
 ```bash
@@ -59,4 +61,4 @@ DECIDIUM_SESSION=work deciduum decisions list
 
 ## License
 
-MIT License - see [LICENSE](LICENSE)
+MIT License - see [LICENSE](https://github.com/glenn-syj/deciduum/blob/main/cli/LICENSE)
