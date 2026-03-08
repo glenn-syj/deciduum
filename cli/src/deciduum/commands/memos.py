@@ -23,6 +23,9 @@ def _handle_server_mode(e: ServerClientError) -> None:
 def list_memos(
     date: Optional[str] = Option(None, "--date", "-d", help="Filter by date"),
     limit: int = Option(20, "--limit", "-l", help="Number of memos to show"),
+    one_line: bool = Option(
+        False, "--one-line", "-o", help="Show compact one-line format"
+    ),
 ):
     """List all memos."""
     if is_server_mode():
@@ -46,27 +49,40 @@ def list_memos(
                 typer.echo("No memos found.")
                 return
 
-            typer.echo("=== Memos ===\n")
-            for m in memos:
-                content_preview = (
-                    m.get("content", "")[:60] + "..."
-                    if len(m.get("content", "")) > 60
-                    else m.get("content", "")
-                )
-                decision_ref = (
-                    f"[Decision: {m.get('linked_decision_id', '')[:8]}...]"
-                    if m.get("linked_decision_id")
-                    else ""
-                )
-                direction_ref = (
-                    f"[{m.get('direction_title', '')}]"
-                    if m.get("direction_title")
-                    else ""
-                )
-                typer.echo(
-                    f"{m.get('date', '')} [{m.get('id', '')[:6]}] {direction_ref} {decision_ref}"
-                )
-                typer.echo(f"  {content_preview}\n")
+            if one_line:
+                typer.echo("=== Memos ===\n")
+                for m in memos:
+                    content_preview = (
+                        m.get("content", "")[:60] + "..."
+                        if len(m.get("content", "")) > 60
+                        else m.get("content", "")
+                    )
+                    decision_ref = (
+                        f"[→{m.get('linked_decision_title', '')}]"
+                        if m.get("linked_decision_title")
+                        else ""
+                    )
+                    direction_ref = (
+                        f"[{m.get('direction_title', '')}]"
+                        if m.get("direction_title")
+                        else ""
+                    )
+                    typer.echo(
+                        f"{m.get('date', '')} [{m.get('id', '')[:8]}] {direction_ref} {decision_ref} {content_preview}"
+                    )
+            else:
+                typer.echo("=== Memos ===\n")
+                for m in memos:
+                    typer.echo(f"ID: {m.get('id', '')}")
+                    typer.echo(f"Date: {m.get('date', '')}")
+                    typer.echo(f"Content: {m.get('content', '')}")
+                    if m.get("direction_title"):
+                        typer.echo(f"Direction: {m.get('direction_title', '')}")
+                    if m.get("linked_decision_title"):
+                        typer.echo(
+                            f"Linked Decision: {m.get('linked_decision_title', '')} ({m.get('linked_decision_id', '')})"
+                        )
+                    typer.echo("---\n")
         except ServerClientError as e:
             _handle_server_mode(e)
         return
@@ -84,19 +100,32 @@ def list_memos(
             typer.echo("No memos found.")
             return
 
-        typer.echo("=== Memos ===\n")
-        for m in memos:
-            content_preview = (
-                m.content[:60] + "..." if len(m.content) > 60 else m.content
-            )
-            decision_ref = (
-                f"[Decision: {m.linked_decision_id[:8]}...]"
-                if m.linked_decision_id
-                else ""
-            )
-            direction_ref = f"[{m.direction.title}]" if m.direction else ""
-            typer.echo(f"{m.date} [{m.id[:6]}] {direction_ref} {decision_ref}")
-            typer.echo(f"  {content_preview}\n")
+        if one_line:
+            typer.echo("=== Memos ===\n")
+            for m in memos:
+                content_preview = (
+                    m.content[:60] + "..." if len(m.content) > 60 else m.content
+                )
+                decision_ref = (
+                    f"[→{m.linked_decision.title}]" if m.linked_decision else ""
+                )
+                direction_ref = f"[{m.direction.title}]" if m.direction else ""
+                typer.echo(
+                    f"{m.date} [{m.id[:8]}] {direction_ref} {decision_ref} {content_preview}"
+                )
+        else:
+            typer.echo("=== Memos ===\n")
+            for m in memos:
+                typer.echo(f"ID: {m.id}")
+                typer.echo(f"Date: {m.date}")
+                typer.echo(f"Content: {m.content}")
+                if m.direction:
+                    typer.echo(f"Direction: {m.direction.title}")
+                if m.linked_decision:
+                    typer.echo(
+                        f"Linked Decision: {m.linked_decision.title} ({m.linked_decision.id})"
+                    )
+                typer.echo("---\n")
 
     finally:
         db.close()

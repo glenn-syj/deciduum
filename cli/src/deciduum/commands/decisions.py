@@ -19,10 +19,45 @@ def _handle_server_mode(e: ServerClientError) -> None:
     raise typer.Exit(1)
 
 
+def _format_decision_one_line(
+    status_icon: str,
+    date: str,
+    title: str,
+    direction: str,
+    decision_id: str,
+) -> str:
+    """Format a decision in one-line compact format."""
+    return f"{status_icon} {date} {title} {direction} [{decision_id[:6]}]"
+
+
+def _format_decision_multi_line(
+    decision_id: str,
+    title: str,
+    date: str,
+    status: str,
+    direction: str,
+    review_at: Optional[str] = None,
+) -> str:
+    """Format a decision in multi-line detailed format."""
+    lines = [
+        f"ID: {decision_id}",
+        f"Title: {title}",
+        f"Date: {date}",
+        f"Status: {status}",
+    ]
+    if direction:
+        lines.append(f"Direction: {direction}")
+    if review_at:
+        lines.append(f"Review at: {review_at}")
+    lines.append("---")
+    return "\n".join(lines)
+
+
 @decisions_app.command("list")
 def list_decisions(
     status: Optional[str] = Option(None, "--status", "-s", help="Filter by status"),
     limit: int = Option(20, "--limit", "-l", help="Number of decisions to show"),
+    one_line: bool = Option(False, "--one-line", "-o", help="Show in one-line format"),
 ):
     """List all decisions."""
     if is_server_mode():
@@ -46,20 +81,34 @@ def list_decisions(
                 typer.echo("No decisions found.")
                 return
 
-            typer.echo("=== Decisions ===\n")
+            if not one_line:
+                typer.echo("=== Decisions ===\n")
             for d in decisions:
                 status_icon = {"ongoing": "○", "completed": "✓", "archived": "◐"}.get(
                     d.get("status", "ongoing"), "○"
                 )
-                decision_id = d.get("id", "")[:6]
-                direction = (
-                    f"[{d.get('direction_title', '')}]"
-                    if d.get("direction_title")
-                    else ""
-                )
-                typer.echo(
-                    f"{status_icon} {d.get('date', '')} [{decision_id}] {direction} {d.get('title', '')}"
-                )
+                decision_id = d.get("id", "")
+                direction = d.get("direction_title", "")
+                direction_str = f"[{direction}]" if direction else ""
+
+                if one_line:
+                    output = _format_decision_one_line(
+                        status_icon=status_icon,
+                        date=d.get("date", ""),
+                        title=d.get("title", ""),
+                        direction=direction_str,
+                        decision_id=decision_id,
+                    )
+                else:
+                    output = _format_decision_multi_line(
+                        decision_id=decision_id,
+                        title=d.get("title", ""),
+                        date=d.get("date", ""),
+                        status=d.get("status", "ongoing"),
+                        direction=direction,
+                        review_at=d.get("review_at"),
+                    )
+                typer.echo(output)
         except ServerClientError as e:
             _handle_server_mode(e)
         return
@@ -77,14 +126,34 @@ def list_decisions(
             typer.echo("No decisions found.")
             return
 
-        typer.echo("=== Decisions ===\n")
+        if not one_line:
+            typer.echo("=== Decisions ===\n")
         for d in decisions:
             status_icon = {"ongoing": "○", "completed": "✓", "archived": "◐"}.get(
                 d.status, "○"
             )
-            decision_id = str(d.id)[:6]
-            direction = f"[{d.direction.title}]" if d.direction else ""
-            typer.echo(f"{status_icon} {d.date} [{decision_id}] {direction} {d.title}")
+            decision_id = str(d.id)
+            direction = d.direction.title if d.direction else ""
+            direction_str = f"[{direction}]" if direction else ""
+
+            if one_line:
+                output = _format_decision_one_line(
+                    status_icon=status_icon,
+                    date=str(d.date),
+                    title=d.title,
+                    direction=direction_str,
+                    decision_id=decision_id,
+                )
+            else:
+                output = _format_decision_multi_line(
+                    decision_id=decision_id,
+                    title=d.title,
+                    date=str(d.date),
+                    status=d.status,
+                    direction=direction,
+                    review_at=str(d.review_at) if d.review_at else None,
+                )
+            typer.echo(output)
 
     finally:
         db.close()

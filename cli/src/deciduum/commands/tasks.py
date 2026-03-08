@@ -26,6 +26,9 @@ def list_tasks(
         None, "--decision", "-d", help="Filter by decision ID"
     ),
     limit: int = Option(20, "--limit", "-l", help="Number of tasks to show"),
+    one_line: bool = Option(
+        False, "--one-line", "-o", help="Show compact one-line output"
+    ),
 ):
     """List all tasks."""
     if is_server_mode():
@@ -51,22 +54,46 @@ def list_tasks(
                 typer.echo("No tasks found.")
                 return
 
-            typer.echo("=== Tasks ===\n")
-            for t in tasks:
-                status_icon = {
-                    "pending": "○",
-                    "in_progress": "◐",
-                    "completed": "✓",
-                }.get(t.get("status", "pending"), "○")
-                due = f"[due: {t.get('due_date', '')}]" if t.get("due_date") else ""
-                decision_ref = (
-                    f"[{t.get('decision_title', '')[:30]}...]"
-                    if t.get("decision_title")
-                    else ""
-                )
-                typer.echo(
-                    f"{status_icon} [{t.get('id', '')[:6]}] {t.get('title', '')} {due} {decision_ref}"
-                )
+            if one_line:
+                typer.echo("=== Tasks ===\n")
+                for t in tasks:
+                    status_icon = {
+                        "pending": "○",
+                        "in_progress": "◐",
+                        "completed": "✓",
+                    }.get(t.get("status", "pending"), "○")
+                    due = f"[due: {t.get('due_date', '')}]" if t.get("due_date") else ""
+                    decision_ref = (
+                        f"[→{t.get('decision_title', '')[:30]}]"
+                        if t.get("decision_title")
+                        else ""
+                    )
+                    typer.echo(
+                        f"{status_icon} [{t.get('id', '')[:6]}] {t.get('title', '')} {due} {decision_ref}"
+                    )
+            else:
+                typer.echo("=== Tasks ===\n")
+                for t in tasks:
+                    typer.echo(f"ID: {t.get('id', '')}")
+                    typer.echo(f"Title: {t.get('title', '')}")
+                    status_icon = {
+                        "pending": "○",
+                        "in_progress": "◐",
+                        "completed": "✓",
+                    }.get(t.get("status", "pending"), "○")
+                    typer.echo(f"Status: {status_icon} {t.get('status', 'pending')}")
+                    due = t.get("due_date", "Not set")
+                    typer.echo(f"Due: {due}")
+                    if t.get("decision_title"):
+                        decision_id_val = t.get("decision_id", "")
+                        typer.echo(
+                            f"Decision: {t.get('decision_title')} ({decision_id_val})"
+                        )
+                    else:
+                        typer.echo("Decision: None")
+                    if t.get("notes"):
+                        typer.echo(f"Notes: {t.get('notes')}")
+                    typer.echo("---")
         except ServerClientError as e:
             _handle_server_mode(e)
         return
@@ -90,14 +117,37 @@ def list_tasks(
             typer.echo("No tasks found.")
             return
 
-        typer.echo("=== Tasks ===\n")
-        for t in tasks:
-            status_icon = {"pending": "○", "in_progress": "◐", "completed": "✓"}.get(
-                t.status, "○"
-            )
-            due = f"[due: {t.due_date}]" if t.due_date else ""
-            decision_ref = f"[{t.decision.title[:30]}...]" if t.decision else ""
-            typer.echo(f"{status_icon} [{t.id[:6]}] {t.title} {due} {decision_ref}")
+        if one_line:
+            typer.echo("=== Tasks ===\n")
+            for t in tasks:
+                status_icon = {
+                    "pending": "○",
+                    "in_progress": "◐",
+                    "completed": "✓",
+                }.get(t.status, "○")
+                due = f"[due: {t.due_date}]" if t.due_date else ""
+                decision_ref = f"[→{t.decision.title[:30]}]" if t.decision else ""
+                typer.echo(f"{status_icon} [{t.id[:6]}] {t.title} {due} {decision_ref}")
+        else:
+            typer.echo("=== Tasks ===\n")
+            for t in tasks:
+                typer.echo(f"ID: {t.id}")
+                typer.echo(f"Title: {t.title}")
+                status_icon = {
+                    "pending": "○",
+                    "in_progress": "◐",
+                    "completed": "✓",
+                }.get(t.status, "○")
+                typer.echo(f"Status: {status_icon} {t.status}")
+                due = t.due_date or "Not set"
+                typer.echo(f"Due: {due}")
+                if t.decision:
+                    typer.echo(f"Decision: {t.decision.title} ({t.decision_id})")
+                else:
+                    typer.echo("Decision: None")
+                if t.notes:
+                    typer.echo(f"Notes: {t.notes}")
+                typer.echo("---")
 
     finally:
         db.close()

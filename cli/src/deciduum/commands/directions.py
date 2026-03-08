@@ -22,6 +22,9 @@ def _handle_server_mode(e: ServerClientError) -> None:
 @directions_app.command("list")
 def list_directions(
     limit: int = Option(20, "--limit", "-l", help="Number of directions to show"),
+    one_line: bool = Option(
+        False, "--one-line", "-o", help="Show compact one-line format"
+    ),
 ):
     """List all directions."""
     if is_server_mode():
@@ -42,13 +45,24 @@ def list_directions(
                 typer.echo("No directions found.")
                 return
 
-            typer.echo("=== Directions ===\n")
-            for d in directions:
-                direction_id = d.get("id", "")[:6]
-                decision_count = d.get("decision_count", 0)
-                typer.echo(
-                    f"• [{direction_id}] {d.get('title', '')} ({decision_count} decisions)"
-                )
+            if one_line:
+                typer.echo("=== Directions ===\n")
+                for d in directions:
+                    direction_id = d.get("id", "")[:6]
+                    decision_count = d.get("decision_count", 0)
+                    typer.echo(
+                        f"• [{direction_id}] {d.get('title', '')} ({decision_count} decisions)"
+                    )
+            else:
+                for d in directions:
+                    direction_id = d.get("id", "")
+                    decision_count = d.get("decision_count", 0)
+                    created_at = d.get("created_at", "N/A")
+                    typer.echo(f"ID: {direction_id}")
+                    typer.echo(f"Title: {d.get('title', '')}")
+                    typer.echo(f"Decisions: {decision_count}")
+                    typer.echo(f"Created: {created_at}")
+                    typer.echo("---")
         except ServerClientError as e:
             _handle_server_mode(e)
         return
@@ -67,11 +81,22 @@ def list_directions(
             typer.echo("No directions found.")
             return
 
-        typer.echo("=== Directions ===\n")
-        for d in directions:
-            direction_id = d.id[:6]
-            decision_count = len(d.decisions)
-            typer.echo(f"• [{direction_id}] {d.title} ({decision_count} decisions)")
+        if one_line:
+            typer.echo("=== Directions ===\n")
+            for d in directions:
+                direction_id = d.id[:6]
+                decision_count = len(d.decisions)
+                typer.echo(f"• [{direction_id}] {d.title} ({decision_count} decisions)")
+        else:
+            for d in directions:
+                direction_id = d.id
+                decision_count = len(d.decisions)
+                created_at = d.created_at
+                typer.echo(f"ID: {direction_id}")
+                typer.echo(f"Title: {d.title}")
+                typer.echo(f"Decisions: {decision_count}")
+                typer.echo(f"Created: {created_at}")
+                typer.echo("---")
 
     finally:
         db.close()
