@@ -63,7 +63,9 @@ def list_memos(
                     if m.get("direction_title")
                     else ""
                 )
-                typer.echo(f"{m.get('date', '')} {direction_ref} {decision_ref}")
+                typer.echo(
+                    f"{m.get('date', '')} [{m.get('id', '')[:6]}] {direction_ref} {decision_ref}"
+                )
                 typer.echo(f"  {content_preview}\n")
         except ServerClientError as e:
             _handle_server_mode(e)
@@ -93,7 +95,7 @@ def list_memos(
                 else ""
             )
             direction_ref = f"[{m.direction.title}]" if m.direction else ""
-            typer.echo(f"{m.date} {direction_ref} {decision_ref}")
+            typer.echo(f"{m.date} [{m.id[:6]}] {direction_ref} {decision_ref}")
             typer.echo(f"  {content_preview}\n")
 
     finally:

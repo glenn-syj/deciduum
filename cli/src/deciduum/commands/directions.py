@@ -44,8 +44,11 @@ def list_directions(
 
             typer.echo("=== Directions ===\n")
             for d in directions:
+                direction_id = d.get("id", "")[:6]
                 decision_count = d.get("decision_count", 0)
-                typer.echo(f"• {d.get('title', '')} ({decision_count} decisions)")
+                typer.echo(
+                    f"• [{direction_id}] {d.get('title', '')} ({decision_count} decisions)"
+                )
         except ServerClientError as e:
             _handle_server_mode(e)
         return
@@ -66,8 +69,9 @@ def list_directions(
 
         typer.echo("=== Directions ===\n")
         for d in directions:
+            direction_id = d.id[:6]
             decision_count = len(d.decisions)
-            typer.echo(f"• {d.title} ({decision_count} decisions)")
+            typer.echo(f"• [{direction_id}] {d.title} ({decision_count} decisions)")
 
     finally:
         db.close()

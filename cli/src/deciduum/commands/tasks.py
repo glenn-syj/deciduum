@@ -64,7 +64,9 @@ def list_tasks(
                     if t.get("decision_title")
                     else ""
                 )
-                typer.echo(f"{status_icon} {t.get('title', '')} {due} {decision_ref}")
+                typer.echo(
+                    f"{status_icon} [{t.get('id', '')[:6]}] {t.get('title', '')} {due} {decision_ref}"
+                )
         except ServerClientError as e:
             _handle_server_mode(e)
         return
@@ -95,7 +97,7 @@ def list_tasks(
             )
             due = f"[due: {t.due_date}]" if t.due_date else ""
             decision_ref = f"[{t.decision.title[:30]}...]" if t.decision else ""
-            typer.echo(f"{status_icon} {t.title} {due} {decision_ref}")
+            typer.echo(f"{status_icon} [{t.id[:6]}] {t.title} {due} {decision_ref}")
 
     finally:
         db.close()

@@ -51,13 +51,14 @@ def list_decisions(
                 status_icon = {"ongoing": "○", "completed": "✓", "archived": "◐"}.get(
                     d.get("status", "ongoing"), "○"
                 )
+                decision_id = d.get("id", "")[:6]
                 direction = (
                     f"[{d.get('direction_title', '')}]"
                     if d.get("direction_title")
                     else ""
                 )
                 typer.echo(
-                    f"{status_icon} {d.get('date', '')} {direction} {d.get('title', '')}"
+                    f"{status_icon} {d.get('date', '')} [{decision_id}] {direction} {d.get('title', '')}"
                 )
         except ServerClientError as e:
             _handle_server_mode(e)
@@ -81,8 +82,9 @@ def list_decisions(
             status_icon = {"ongoing": "○", "completed": "✓", "archived": "◐"}.get(
                 d.status, "○"
             )
+            decision_id = str(d.id)[:6]
             direction = f"[{d.direction.title}]" if d.direction else ""
-            typer.echo(f"{status_icon} {d.date} {direction} {d.title}")
+            typer.echo(f"{status_icon} {d.date} [{decision_id}] {direction} {d.title}")
 
     finally:
         db.close()
