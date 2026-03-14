@@ -63,8 +63,9 @@ def _format_decision_multi_line(
 
 @decisions_app.command("list")
 def list_decisions(
-    json_output: bool = Option(False, "--json", help="Output as JSON"),
-    quiet: bool = Option(False, "--quiet", "-q", help="Output IDs only, one per line"),
+    output_format: Optional[str] = Option(
+        None, "--format", "-f", help="Output format: json, quiet"
+    ),
     status: Optional[str] = Option(None, "--status", "-s", help="Filter by status"),
     limit: int = Option(20, "--limit", "-l", help="Number of decisions to show"),
     one_line: bool = Option(False, "--one-line", "-o", help="Show in one-line format"),
@@ -75,7 +76,8 @@ def list_decisions(
     ),
 ):
     """List all decisions."""
-    # Get output mode
+    json_output = output_format == "json"
+    quiet = output_format == "quiet"
     output_mode = get_output_mode(json_output, quiet)
 
     # Parse fields if provided
@@ -242,58 +244,46 @@ def list_decisions(
 
 @decisions_app.command("add")
 def add_decision(
-    title: Optional[str] = Option(None, "--title", "-t", help="Decision title"),
-    date: Optional[str] = Option(
-        None, "--date", "-d", help="Date (YYYY-MM-DD, defaults to today)"
-    ),
-    direction: Optional[str] = Option(None, "--direction", help="Direction ID"),
-    status: str = Option(
-        "ongoing", "--status", "-s", help="Status (ongoing/completed/archived)"
-    ),
-    json_input: Optional[str] = Option(
-        None, "--json-input", "-j", help="JSON payload instead of individual flags"
+    json_input: str = Option(
+        ..., "--json", "-j", help="JSON payload with decision fields"
     ),
 ):
     """Add a new decision."""
-    # Validate inputs
-    if title:
-        validate_safe_input(title, "title")
-    if direction:
-        validate_safe_input(direction, "direction")
+    # Parse JSON input
+    try:
+        json_data = json.loads(json_input)
+    except json.JSONDecodeError as e:
+        typer.echo(f"Invalid JSON: {e}", err=True)
+        raise typer.Exit(1)
 
-    # Parse JSON input if provided - JSON takes precedence
-    json_data = None
-    if json_input:
-        try:
-            json_data = json.loads(json_input)
-        except json.JSONDecodeError as e:
-            typer.echo(f"Invalid JSON: {e}", err=True)
-            raise typer.Exit(1)
+    # Extract fields from JSON
+    title = json_data.get("title")
+    date = json_data.get("date")
+    status = json_data.get("status", "ongoing")
+    direction_id = json_data.get("direction_id")
+    review_at = json_data.get("review_at")
+
+    # Validate required fields
+    if not title:
+        typer.echo("Missing required field: title", err=True)
+        raise typer.Exit(1)
+
+    # Validate inputs
+    validate_safe_input(title, "title")
+    if direction_id:
+        validate_safe_input(direction_id, "direction")
 
     if is_server_mode():
         try:
-            # Build data: JSON takes precedence, fall back to flags
-            if json_data:
-                data = {
-                    "title": json_data.get("title", title),
-                    "date": json_data.get("date", date)
-                    or datetime.now().strftime("%Y-%m-%d"),
-                    "status": json_data.get("status", status),
-                }
-                if json_data.get("direction_id"):
-                    data["direction_id"] = json_data["direction_id"]
-                elif direction:
-                    data["direction_id"] = direction
-                if json_data.get("review_at"):
-                    data["review_at"] = json_data["review_at"]
-            else:
-                data = {
-                    "title": title,
-                    "date": date or datetime.now().strftime("%Y-%m-%d"),
-                    "status": status,
-                }
-                if direction:
-                    data["direction_id"] = direction
+            data = {
+                "title": title,
+                "date": date or datetime.now().strftime("%Y-%m-%d"),
+                "status": status,
+            }
+            if direction_id:
+                data["direction_id"] = direction_id
+            if review_at:
+                data["review_at"] = review_at
             result = api_request("POST", "/api/decisions", data=data)
             data = unwrap_response(result, {})
             typer.echo(f"Created decision: {data.get('id')}")
@@ -304,36 +294,20 @@ def add_decision(
 
     db = get_db()
     try:
-        # Build data: JSON takes precedence, fall back to flags
-        if json_data:
-            final_title = json_data.get("title", title)
-            final_date = json_data.get("date", date)
-            final_status = json_data.get("status", status)
-            final_direction = json_data.get("direction_id", direction)
-            final_review_at = json_data.get("review_at")
-        else:
-            final_title = title
-            final_date = date
-            final_status = status
-            final_direction = direction
-            final_review_at = None
-
         # Validate direction if provided
-        if final_direction:
+        if direction_id:
             from deciduum.models import Direction
 
-            dir_obj = (
-                db.query(Direction).filter(Direction.id == final_direction).first()
-            )
+            dir_obj = db.query(Direction).filter(Direction.id == direction_id).first()
             if not dir_obj:
-                typer.echo(f"Direction '{final_direction}' not found.", err=True)
+                typer.echo(f"Direction '{direction_id}' not found.", err=True)
                 raise typer.Exit(1)
 
         decision = Decision(
-            title=final_title,
-            date=final_date or datetime.now().strftime("%Y-%m-%d"),
-            status=final_status,
-            direction_id=final_direction,
+            title=title,
+            date=date or datetime.now().strftime("%Y-%m-%d"),
+            status=status,
+            direction_id=direction_id,
         )
         db.add(decision)
         db.commit()
@@ -348,8 +322,9 @@ def add_decision(
 @decisions_app.command("show")
 def show_decision(
     decision_id: str = Argument(..., help="Decision ID"),
-    json_output: bool = Option(False, "--json", help="Output as JSON"),
-    quiet: bool = Option(False, "--quiet", "-q", help="Output ID only"),
+    output_format: Optional[str] = Option(
+        None, "--format", "-f", help="Output format: json, quiet"
+    ),
     with_flag: Optional[str] = Option(
         None,
         "--with",
@@ -358,6 +333,8 @@ def show_decision(
     ),
 ):
     """Show a decision's details."""
+    json_output = output_format == "json"
+    quiet = output_format == "quiet"
     # Validate input
     validate_resource_id(decision_id)
 
@@ -600,13 +577,15 @@ def delete_decision(
 
 @decisions_app.command("next")
 def next_decision(
-    json_output: bool = Option(False, "--json", help="Output as JSON"),
-    quiet: bool = Option(False, "--quiet", "-q", help="Output ID only"),
+    output_format: Optional[str] = Option(
+        None, "--format", "-f", help="Output format: json, quiet"
+    ),
 ):
     """Show the next decision that needs review based on review_at date."""
     from datetime import date
 
-    # Get output mode
+    json_output = output_format == "json"
+    quiet = output_format == "quiet"
     output_mode = get_output_mode(json_output, quiet)
 
     today = date.today()
@@ -759,68 +738,44 @@ def next_decision(
 @decisions_app.command("update")
 def update_decision(
     decision_id: str = Argument(..., help="Decision ID"),
-    title: Optional[str] = Option(None, "--title", "-t", help="Decision title"),
-    status: Optional[str] = Option(
-        None,
-        "--status",
-        "-s",
-        help="Status (ongoing/completed/archived)",
-    ),
-    direction: Optional[str] = Option(None, "--direction", "-d", help="Direction ID"),
-    review_at: Optional[str] = Option(
-        None, "--review-at", "-r", help="Review date (YYYY-MM-DD)"
-    ),
-    json_input: Optional[str] = Option(
-        None, "--json-input", "-j", help="JSON payload with fields to update"
+    json_input: str = Option(
+        ..., "--json", "-j", help="JSON payload with fields to update"
     ),
 ):
     """Update a decision."""
     # Validate inputs
     validate_resource_id(decision_id)
+
+    # Parse JSON input
+    try:
+        json_data = json.loads(json_input)
+    except json.JSONDecodeError as e:
+        typer.echo(f"Invalid JSON: {e}", err=True)
+        raise typer.Exit(1)
+
+    # Extract optional fields from JSON
+    title = json_data.get("title")
+    status = json_data.get("status")
+    direction_id = json_data.get("direction_id")
+    review_at = json_data.get("review_at")
+
+    # Validate inputs if provided
     if title:
         validate_safe_input(title, "title")
-    if direction:
-        validate_safe_input(direction, "direction")
-
-    # Parse JSON input if provided - JSON takes precedence (PATCH semantics)
-    json_data = None
-    if json_input:
-        try:
-            json_data = json.loads(json_input)
-        except json.JSONDecodeError as e:
-            typer.echo(f"Invalid JSON: {e}", err=True)
-            raise typer.Exit(1)
+    if direction_id:
+        validate_safe_input(direction_id, "direction")
 
     if is_server_mode():
         try:
             data = {}
-            # JSON takes precedence over flags
-            if json_data:
-                if "title" in json_data:
-                    data["title"] = json_data["title"]
-                elif title is not None:
-                    data["title"] = title
-                if "status" in json_data:
-                    data["status"] = json_data["status"]
-                elif status is not None:
-                    data["status"] = status
-                if "direction_id" in json_data:
-                    data["direction_id"] = json_data["direction_id"]
-                elif direction is not None:
-                    data["direction_id"] = direction
-                if "review_at" in json_data:
-                    data["review_at"] = json_data["review_at"]
-                elif review_at is not None:
-                    data["review_at"] = review_at
-            else:
-                if title is not None:
-                    data["title"] = title
-                if status is not None:
-                    data["status"] = status
-                if direction is not None:
-                    data["direction_id"] = direction
-                if review_at is not None:
-                    data["review_at"] = review_at
+            if title is not None:
+                data["title"] = title
+            if status is not None:
+                data["status"] = status
+            if direction_id is not None:
+                data["direction_id"] = direction_id
+            if review_at is not None:
+                data["review_at"] = review_at
 
             api_request("PATCH", f"/api/decisions/{decision_id}", data=data)
             typer.echo(f"Updated decision '{decision_id}'.")
@@ -836,60 +791,22 @@ def update_decision(
             typer.echo(f"Decision '{decision_id}' not found.", err=True)
             raise typer.Exit(1)
 
-        # JSON takes precedence over flags
-        if json_data:
-            if "title" in json_data:
-                decision.title = json_data["title"]
-            elif title is not None:
-                decision.title = title
-            if "status" in json_data:
-                decision.status = json_data["status"]
-            elif status is not None:
-                decision.status = status
-            if "direction_id" in json_data:
-                # Verify direction exists
-                from deciduum.models import Direction
+        # Apply updates from JSON (all fields optional)
+        if title is not None:
+            decision.title = title
+        if status is not None:
+            decision.status = status
+        if direction_id is not None:
+            # Verify direction exists
+            from deciduum.models import Direction
 
-                dir_obj = (
-                    db.query(Direction)
-                    .filter(Direction.id == json_data["direction_id"])
-                    .first()
-                )
-                if not dir_obj:
-                    typer.echo(
-                        f"Direction '{json_data['direction_id']}' not found.", err=True
-                    )
-                    raise typer.Exit(1)
-                decision.direction_id = json_data["direction_id"]
-            elif direction is not None:
-                # Verify direction exists
-                from deciduum.models import Direction
-
-                dir_obj = db.query(Direction).filter(Direction.id == direction).first()
-                if not dir_obj:
-                    typer.echo(f"Direction '{direction}' not found.", err=True)
-                    raise typer.Exit(1)
-                decision.direction_id = direction
-            if "review_at" in json_data:
-                decision.review_at = json_data["review_at"]
-            elif review_at is not None:
-                decision.review_at = review_at
-        else:
-            if title is not None:
-                decision.title = title
-            if status is not None:
-                decision.status = status
-            if direction is not None:
-                # Verify direction exists
-                from deciduum.models import Direction
-
-                dir_obj = db.query(Direction).filter(Direction.id == direction).first()
-                if not dir_obj:
-                    typer.echo(f"Direction '{direction}' not found.", err=True)
-                    raise typer.Exit(1)
-                decision.direction_id = direction
-            if review_at is not None:
-                decision.review_at = review_at
+            dir_obj = db.query(Direction).filter(Direction.id == direction_id).first()
+            if not dir_obj:
+                typer.echo(f"Direction '{direction_id}' not found.", err=True)
+                raise typer.Exit(1)
+            decision.direction_id = direction_id
+        if review_at is not None:
+            decision.review_at = review_at
 
         decision.updated_at = datetime.utcnow().isoformat()
         db.commit()
@@ -902,8 +819,9 @@ def update_decision(
 
 @decisions_app.command("pending")
 def list_pending_decisions(
-    json_output: bool = Option(False, "--json", help="Output as JSON"),
-    quiet: bool = Option(False, "--quiet", "-q", help="Output IDs only, one per line"),
+    output_format: Optional[str] = Option(
+        None, "--format", "-f", help="Output format: json, quiet"
+    ),
     overdue: bool = Option(False, "--overdue", help="Only show overdue decisions"),
     due_soon: bool = Option(
         False, "--due-soon", help="Show decisions due within 7 days"
@@ -912,7 +830,8 @@ def list_pending_decisions(
     """List all pending decisions (ongoing status) that need attention."""
     from datetime import date, timedelta
 
-    # Get output mode
+    json_output = output_format == "json"
+    quiet = output_format == "quiet"
     output_mode = get_output_mode(json_output, quiet)
 
     today = date.today()

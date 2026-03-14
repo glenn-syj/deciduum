@@ -29,8 +29,9 @@ def _filter_fields(data: dict, fields: list) -> dict:
 
 @tasks_app.command("list")
 def list_tasks(
-    json_output: bool = Option(False, "--json", help="Output as JSON"),
-    quiet: bool = Option(False, "--quiet", "-q", help="Output IDs only, one per line"),
+    output_format: Optional[str] = Option(
+        None, "--format", "-f", help="Output format: json, quiet"
+    ),
     status: Optional[str] = Option(None, "--status", "-s", help="Filter by status"),
     decision_id: Optional[str] = Option(
         None, "--decision", "-d", help="Filter by decision ID"
@@ -46,7 +47,8 @@ def list_tasks(
     ),
 ):
     """List all tasks."""
-    # Get output mode
+    json_output = output_format == "json"
+    quiet = output_format == "quiet"
     output_mode = get_output_mode(json_output, quiet)
 
     # Parse fields if provided
@@ -238,64 +240,48 @@ def list_tasks(
 
 @tasks_app.command("add")
 def add_task(
-    title: Optional[str] = Option(None, "--title", "-t", help="Task title"),
-    decision_id: Optional[str] = Option(
-        None, "--decision", "-d", help="Decision ID to link to"
-    ),
-    due_date: Optional[str] = Option(None, "--due", help="Due date (YYYY-MM-DD)"),
-    notes: Optional[str] = Option(None, "--notes", "-n", help="Task notes"),
-    status: str = Option(
-        "pending", "--status", "-s", help="Status (pending/in_progress/completed)"
-    ),
-    json_input: Optional[str] = Option(
-        None, "--json-input", "-j", help="JSON payload instead of individual flags"
-    ),
+    json_input: str = Option(..., "--json", "-j", help="JSON payload with task fields"),
 ):
     """Add a new task."""
+    # Parse JSON input
+    try:
+        json_data = json.loads(json_input)
+    except json.JSONDecodeError as e:
+        typer.echo(f"Invalid JSON: {e}", err=True)
+        raise typer.Exit(1)
+
+    # Extract fields from JSON
+    title = json_data.get("title")
+    decision_id = json_data.get("decision_id")
+    due_date = json_data.get("due_date")
+    notes = json_data.get("notes")
+    status = json_data.get("status", "pending")
+
+    # Validate required fields
+    if not title:
+        typer.echo("Error: 'title' is required in JSON payload.", err=True)
+        raise typer.Exit(1)
+    if not decision_id:
+        typer.echo("Error: 'decision_id' is required in JSON payload.", err=True)
+        raise typer.Exit(1)
+
     # Validate inputs
-    if title:
-        validate_safe_input(title, "title")
-    if decision_id:
-        validate_safe_input(decision_id, "decision_id")
+    validate_safe_input(title, "title")
+    validate_safe_input(decision_id, "decision_id")
     if notes:
         validate_safe_input(notes, "notes")
 
-    # Parse JSON input if provided - JSON takes precedence
-    json_data = None
-    if json_input:
-        try:
-            json_data = json.loads(json_input)
-        except json.JSONDecodeError as e:
-            typer.echo(f"Invalid JSON: {e}", err=True)
-            raise typer.Exit(1)
-
     if is_server_mode():
         try:
-            # Build data: JSON takes precedence, fall back to flags
-            if json_data:
-                data = {
-                    "title": json_data.get("title", title),
-                    "decision_id": json_data.get("decision_id", decision_id),
-                    "status": json_data.get("status", status),
-                }
-                if json_data.get("due_date"):
-                    data["due_date"] = json_data["due_date"]
-                elif due_date:
-                    data["due_date"] = due_date
-                if json_data.get("notes"):
-                    data["notes"] = json_data["notes"]
-                elif notes:
-                    data["notes"] = notes
-            else:
-                data = {
-                    "title": title,
-                    "decision_id": decision_id,
-                    "status": status,
-                }
-                if due_date:
-                    data["due_date"] = due_date
-                if notes:
-                    data["notes"] = notes
+            data = {
+                "title": title,
+                "decision_id": decision_id,
+                "status": status,
+            }
+            if due_date:
+                data["due_date"] = due_date
+            if notes:
+                data["notes"] = notes
             result = api_request("POST", "/api/tasks", data=data)
             data = unwrap_response(result, {})
             typer.echo(f"Created task: {data.get('id')}")
@@ -306,34 +292,20 @@ def add_task(
 
     db = get_db()
     try:
-        # Build data: JSON takes precedence, fall back to flags
-        if json_data:
-            final_title = json_data.get("title", title)
-            final_decision_id = json_data.get("decision_id", decision_id)
-            final_due_date = json_data.get("due_date", due_date)
-            final_notes = json_data.get("notes", notes)
-            final_status = json_data.get("status", status)
-        else:
-            final_title = title
-            final_decision_id = decision_id
-            final_due_date = due_date
-            final_notes = notes
-            final_status = status
-
         # Verify decision exists
         from deciduum.models import Decision
 
-        decision = db.query(Decision).filter(Decision.id == final_decision_id).first()
+        decision = db.query(Decision).filter(Decision.id == decision_id).first()
         if not decision:
-            typer.echo(f"Decision '{final_decision_id}' not found.", err=True)
+            typer.echo(f"Decision '{decision_id}' not found.", err=True)
             raise typer.Exit(1)
 
         task = Task(
-            title=final_title,
-            decision_id=final_decision_id,
-            due_date=final_due_date,
-            notes=final_notes,
-            status=final_status,
+            title=title,
+            decision_id=decision_id,
+            due_date=due_date,
+            notes=notes,
+            status=status,
         )
         db.add(task)
         db.commit()
@@ -348,10 +320,13 @@ def add_task(
 @tasks_app.command("show")
 def show_task(
     task_id: str = Argument(..., help="Task ID"),
-    json_output: bool = Option(False, "--json", help="Output as JSON"),
-    quiet: bool = Option(False, "--quiet", "-q", help="Output ID only"),
+    output_format: Optional[str] = Option(
+        None, "--format", "-f", help="Output format: json, quiet"
+    ),
 ):
     """Show a task's details."""
+    json_output = output_format == "json"
+    quiet = output_format == "quiet"
     # Validate input
     validate_resource_id(task_id)
 
@@ -514,66 +489,44 @@ def delete_task(
 @tasks_app.command("update")
 def update_task(
     task_id: str = Argument(..., help="Task ID"),
-    title: Optional[str] = Option(None, "--title", "-t", help="Task title"),
-    status: Optional[str] = Option(
-        None,
-        "--status",
-        "-s",
-        help="Status (pending/in_progress/completed)",
-    ),
-    due_date: Optional[str] = Option(None, "--due", help="Due date (YYYY-MM-DD)"),
-    notes: Optional[str] = Option(None, "--notes", "-n", help="Task notes"),
-    json_input: Optional[str] = Option(
-        None, "--json-input", "-j", help="JSON payload with fields to update"
+    json_input: str = Option(
+        ..., "--json", "-j", help="JSON payload with fields to update"
     ),
 ):
     """Update a task."""
     # Validate inputs
     validate_resource_id(task_id)
+
+    # Parse JSON input
+    try:
+        json_data = json.loads(json_input)
+    except json.JSONDecodeError as e:
+        typer.echo(f"Invalid JSON: {e}", err=True)
+        raise typer.Exit(1)
+
+    # Extract fields from JSON (all optional for update)
+    title = json_data.get("title")
+    status = json_data.get("status")
+    due_date = json_data.get("due_date")
+    notes = json_data.get("notes")
+
+    # Validate inputs if provided
     if title:
         validate_safe_input(title, "title")
     if notes:
         validate_safe_input(notes, "notes")
 
-    # Parse JSON input if provided - JSON takes precedence (PATCH semantics)
-    json_data = None
-    if json_input:
-        try:
-            json_data = json.loads(json_input)
-        except json.JSONDecodeError as e:
-            typer.echo(f"Invalid JSON: {e}", err=True)
-            raise typer.Exit(1)
-
     if is_server_mode():
         try:
             data = {}
-            # JSON takes precedence over flags
-            if json_data:
-                if "title" in json_data:
-                    data["title"] = json_data["title"]
-                elif title is not None:
-                    data["title"] = title
-                if "status" in json_data:
-                    data["status"] = json_data["status"]
-                elif status is not None:
-                    data["status"] = status
-                if "due_date" in json_data:
-                    data["due_date"] = json_data["due_date"]
-                elif due_date is not None:
-                    data["due_date"] = due_date
-                if "notes" in json_data:
-                    data["notes"] = json_data["notes"]
-                elif notes is not None:
-                    data["notes"] = notes
-            else:
-                if title is not None:
-                    data["title"] = title
-                if status is not None:
-                    data["status"] = status
-                if due_date is not None:
-                    data["due_date"] = due_date
-                if notes is not None:
-                    data["notes"] = notes
+            if title is not None:
+                data["title"] = title
+            if status is not None:
+                data["status"] = status
+            if due_date is not None:
+                data["due_date"] = due_date
+            if notes is not None:
+                data["notes"] = notes
             api_request("PATCH", f"/api/tasks/{task_id}", data=data)
             typer.echo(f"Updated task '{task_id}'.")
         except ServerClientError as e:
@@ -588,33 +541,15 @@ def update_task(
             typer.echo(f"Task '{task_id}' not found.", err=True)
             raise typer.Exit(1)
 
-        # JSON takes precedence over flags
-        if json_data:
-            if "title" in json_data:
-                task.title = json_data["title"]
-            elif title is not None:
-                task.title = title
-            if "status" in json_data:
-                task.status = json_data["status"]
-            elif status is not None:
-                task.status = status
-            if "due_date" in json_data:
-                task.due_date = json_data["due_date"]
-            elif due_date is not None:
-                task.due_date = due_date
-            if "notes" in json_data:
-                task.notes = json_data["notes"]
-            elif notes is not None:
-                task.notes = notes
-        else:
-            if title is not None:
-                task.title = title
-            if status is not None:
-                task.status = status
-            if due_date is not None:
-                task.due_date = due_date
-            if notes is not None:
-                task.notes = notes
+        # Apply updates from JSON
+        if title is not None:
+            task.title = title
+        if status is not None:
+            task.status = status
+        if due_date is not None:
+            task.due_date = due_date
+        if notes is not None:
+            task.notes = notes
 
         task.updated_at = datetime.utcnow().isoformat()
         db.commit()

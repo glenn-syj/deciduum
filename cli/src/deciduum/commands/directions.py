@@ -29,8 +29,9 @@ def _filter_fields(data: dict, fields: list) -> dict:
 
 @directions_app.command("list")
 def list_directions(
-    json_output: bool = Option(False, "--json", help="Output as JSON"),
-    quiet: bool = Option(False, "--quiet", "-q", help="Output IDs only, one per line"),
+    output_format: Optional[str] = Option(
+        None, "--format", "-f", help="Output format: json, quiet"
+    ),
     limit: int = Option(20, "--limit", "-l", help="Number of directions to show"),
     one_line: bool = Option(
         False, "--one-line", "-o", help="Show compact one-line format"
@@ -40,7 +41,8 @@ def list_directions(
     ),
 ):
     """List all directions."""
-    # Get output mode
+    json_output = output_format == "json"
+    quiet = output_format == "quiet"
     output_mode = get_output_mode(json_output, quiet)
 
     # Parse fields if provided
@@ -177,32 +179,29 @@ def list_directions(
 
 @directions_app.command("add")
 def add_direction(
-    title: Optional[str] = Option(None, "--title", "-t", help="Direction title"),
-    json_input: Optional[str] = Option(
-        None, "--json-input", "-j", help="JSON payload instead of individual flags"
+    json_input: str = Option(
+        ..., "--json", "-j", help="JSON payload with direction fields"
     ),
 ):
     """Add a new direction."""
-    # Validate inputs
-    if title:
-        validate_safe_input(title, "title")
+    # Parse JSON input
+    try:
+        json_data = json.loads(json_input)
+    except json.JSONDecodeError as e:
+        typer.echo(f"Invalid JSON: {e}", err=True)
+        raise typer.Exit(1)
 
-    # Parse JSON input if provided - JSON takes precedence
-    json_data = None
-    if json_input:
-        try:
-            json_data = json.loads(json_input)
-        except json.JSONDecodeError as e:
-            typer.echo(f"Invalid JSON: {e}", err=True)
-            raise typer.Exit(1)
+    # Extract and validate title
+    title = json_data.get("title")
+    if not title:
+        typer.echo("Error: 'title' is required in JSON payload", err=True)
+        raise typer.Exit(1)
+
+    validate_safe_input(title, "title")
 
     if is_server_mode():
         try:
-            # Build data: JSON takes precedence, fall back to flags
-            if json_data:
-                data = {"title": json_data.get("title", title)}
-            else:
-                data = {"title": title}
+            data = {"title": title}
             result = api_request("POST", "/api/directions", data=data)
             data = unwrap_response(result, {})
             typer.echo(f"Created direction: {data.get('id')}")
@@ -213,13 +212,7 @@ def add_direction(
 
     db = get_db()
     try:
-        # Build data: JSON takes precedence, fall back to flags
-        if json_data:
-            final_title = json_data.get("title", title)
-        else:
-            final_title = title
-
-        direction = Direction(title=final_title)
+        direction = Direction(title=title)
         db.add(direction)
         db.commit()
 
@@ -233,10 +226,13 @@ def add_direction(
 @directions_app.command("show")
 def show_direction(
     direction_id: str = Argument(..., help="Direction ID"),
-    json_output: bool = Option(False, "--json", help="Output as JSON"),
-    quiet: bool = Option(False, "--quiet", "-q", help="Output ID only"),
+    output_format: Optional[str] = Option(
+        None, "--format", "-f", help="Output format: json, quiet"
+    ),
 ):
     """Show a direction's details."""
+    json_output = output_format == "json"
+    quiet = output_format == "quiet"
     # Validate input
     validate_resource_id(direction_id)
 
@@ -375,38 +371,30 @@ def delete_direction(
 @directions_app.command("update")
 def update_direction(
     direction_id: str = Argument(..., help="Direction ID"),
-    title: Optional[str] = Option(None, "--title", "-t", help="Direction title"),
-    json_input: Optional[str] = Option(
-        None, "--json-input", "-j", help="JSON payload with fields to update"
+    json_input: str = Option(
+        ..., "--json", "-j", help="JSON payload with fields to update"
     ),
 ):
     """Update a direction."""
-    # Validate inputs
+    # Validate direction_id
     validate_resource_id(direction_id)
-    if title:
-        validate_safe_input(title, "title")
 
-    # Parse JSON input if provided - JSON takes precedence (PATCH semantics)
-    json_data = None
-    if json_input:
-        try:
-            json_data = json.loads(json_input)
-        except json.JSONDecodeError as e:
-            typer.echo(f"Invalid JSON: {e}", err=True)
-            raise typer.Exit(1)
+    # Parse JSON input
+    try:
+        json_data = json.loads(json_input)
+    except json.JSONDecodeError as e:
+        typer.echo(f"Invalid JSON: {e}", err=True)
+        raise typer.Exit(1)
+
+    # Validate title if provided
+    if "title" in json_data and json_data["title"]:
+        validate_safe_input(json_data["title"], "title")
 
     if is_server_mode():
         try:
             data = {}
-            # JSON takes precedence over flags
-            if json_data:
-                if "title" in json_data:
-                    data["title"] = json_data["title"]
-                elif title is not None:
-                    data["title"] = title
-            else:
-                if title is not None:
-                    data["title"] = title
+            if "title" in json_data:
+                data["title"] = json_data["title"]
             api_request("PATCH", f"/api/directions/{direction_id}", data=data)
             typer.echo(f"Updated direction '{direction_id}'.")
         except ServerClientError as e:
@@ -421,15 +409,9 @@ def update_direction(
             typer.echo(f"Direction '{direction_id}' not found.", err=True)
             raise typer.Exit(1)
 
-        # JSON takes precedence over flags
-        if json_data:
-            if "title" in json_data:
-                direction.title = json_data["title"]
-            elif title is not None:
-                direction.title = title
-        else:
-            if title is not None:
-                direction.title = title
+        # Apply optional fields from JSON
+        if "title" in json_data:
+            direction.title = json_data["title"]
 
         direction.updated_at = datetime.utcnow().isoformat()
         db.commit()

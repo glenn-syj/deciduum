@@ -29,8 +29,9 @@ def _filter_fields(data: dict, fields: list) -> dict:
 
 @memos_app.command("list")
 def list_memos(
-    json_output: bool = Option(False, "--json", help="Output as JSON"),
-    quiet: bool = Option(False, "--quiet", "-q", help="Output IDs only, one per line"),
+    output_format: Optional[str] = Option(
+        None, "--format", "-f", help="Output format: json, quiet"
+    ),
     date: Optional[str] = Option(None, "--date", "-d", help="Filter by date"),
     limit: int = Option(20, "--limit", "-l", help="Number of memos to show"),
     one_line: bool = Option(
@@ -43,7 +44,8 @@ def list_memos(
     ),
 ):
     """List all memos."""
-    # Get output mode
+    json_output = output_format == "json"
+    quiet = output_format == "quiet"
     output_mode = get_output_mode(json_output, quiet)
 
     # Parse fields if provided
@@ -216,62 +218,44 @@ def list_memos(
 
 @memos_app.command("add")
 def add_memo(
-    content: Optional[str] = Option(None, "--content", "-c", help="Memo content"),
-    date: Optional[str] = Option(
-        None, "--date", "-d", help="Date (YYYY-MM-DD, defaults to today)"
-    ),
-    decision_id: Optional[str] = Option(None, "--decision", help="Linked decision ID"),
-    direction_id: Optional[str] = Option(
-        None, "--direction", help="Linked direction ID"
-    ),
-    json_input: Optional[str] = Option(
-        None, "--json-input", "-j", help="JSON payload instead of individual flags"
-    ),
+    json_input: str = Option(..., "--json", "-j", help="JSON payload with memo fields"),
 ):
     """Add a new memo."""
-    # Validate inputs
-    if content:
-        validate_safe_input(content, "content")
-    if decision_id:
-        validate_safe_input(decision_id, "decision_id")
-    if direction_id:
-        validate_safe_input(direction_id, "direction_id")
+    # Parse JSON input
+    try:
+        json_data = json.loads(json_input)
+    except json.JSONDecodeError as e:
+        typer.echo(f"Invalid JSON: {e}", err=True)
+        raise typer.Exit(1)
 
-    # Parse JSON input if provided - JSON takes precedence
-    json_data = None
-    if json_input:
-        try:
-            json_data = json.loads(json_input)
-        except json.JSONDecodeError as e:
-            typer.echo(f"Invalid JSON: {e}", err=True)
-            raise typer.Exit(1)
+    # Extract fields from JSON
+    content = json_data.get("content")
+    date = json_data.get("date")
+    linked_decision_id = json_data.get("linked_decision_id")
+    linked_direction_id = json_data.get("linked_direction_id")
+
+    # Validate required fields
+    if not content:
+        typer.echo("Field 'content' is required in JSON payload.", err=True)
+        raise typer.Exit(1)
+
+    # Validate inputs
+    validate_safe_input(content, "content")
+    if linked_decision_id:
+        validate_safe_input(linked_decision_id, "linked_decision_id")
+    if linked_direction_id:
+        validate_safe_input(linked_direction_id, "linked_direction_id")
 
     if is_server_mode():
         try:
-            # Build data: JSON takes precedence, fall back to flags
-            if json_data:
-                data = {
-                    "content": json_data.get("content", content),
-                    "date": json_data.get("date", date)
-                    or datetime.now().strftime("%Y-%m-%d"),
-                }
-                if json_data.get("linked_decision_id"):
-                    data["linked_decision_id"] = json_data["linked_decision_id"]
-                elif decision_id:
-                    data["linked_decision_id"] = decision_id
-                if json_data.get("linked_direction_id"):
-                    data["linked_direction_id"] = json_data["linked_direction_id"]
-                elif direction_id:
-                    data["linked_direction_id"] = direction_id
-            else:
-                data = {
-                    "content": content,
-                    "date": date or datetime.now().strftime("%Y-%m-%d"),
-                }
-                if decision_id:
-                    data["linked_decision_id"] = decision_id
-                if direction_id:
-                    data["linked_direction_id"] = direction_id
+            data = {
+                "content": content,
+                "date": date or datetime.now().strftime("%Y-%m-%d"),
+            }
+            if linked_decision_id:
+                data["linked_decision_id"] = linked_decision_id
+            if linked_direction_id:
+                data["linked_direction_id"] = linked_direction_id
             result = api_request("POST", "/api/memos", data=data)
             data = unwrap_response(result, {})
             typer.echo(f"Created memo: {data.get('id')}")
@@ -282,23 +266,11 @@ def add_memo(
 
     db = get_db()
     try:
-        # Build data: JSON takes precedence, fall back to flags
-        if json_data:
-            final_content = json_data.get("content", content)
-            final_date = json_data.get("date", date)
-            final_decision_id = json_data.get("linked_decision_id", decision_id)
-            final_direction_id = json_data.get("linked_direction_id", direction_id)
-        else:
-            final_content = content
-            final_date = date
-            final_decision_id = decision_id
-            final_direction_id = direction_id
-
         memo = Memo(
-            content=final_content,
-            date=final_date or datetime.now().strftime("%Y-%m-%d"),
-            linked_decision_id=final_decision_id,
-            linked_direction_id=final_direction_id,
+            content=content,
+            date=date or datetime.now().strftime("%Y-%m-%d"),
+            linked_decision_id=linked_decision_id,
+            linked_direction_id=linked_direction_id,
         )
         db.add(memo)
         db.commit()
@@ -313,10 +285,13 @@ def add_memo(
 @memos_app.command("show")
 def show_memo(
     memo_id: str = Argument(..., help="Memo ID"),
-    json_output: bool = Option(False, "--json", help="Output as JSON"),
-    quiet: bool = Option(False, "--quiet", "-q", help="Output ID only"),
+    output_format: Optional[str] = Option(
+        None, "--format", "-f", help="Output format: json, quiet"
+    ),
 ):
     """Show a memo's details."""
+    json_output = output_format == "json"
+    quiet = output_format == "quiet"
     # Validate input
     validate_resource_id(memo_id)
 
@@ -445,60 +420,43 @@ def delete_memo(
 @memos_app.command("update")
 def update_memo(
     memo_id: str = Argument(..., help="Memo ID"),
-    content: Optional[str] = Option(None, "--content", "-c", help="Memo content"),
-    decision_id: Optional[str] = Option(
-        None, "--decision", "-d", help="Linked decision ID"
-    ),
-    direction_id: Optional[str] = Option(
-        None, "--direction", help="Linked direction ID"
-    ),
-    json_input: Optional[str] = Option(
-        None, "--json-input", "-j", help="JSON payload with fields to update"
+    json_input: str = Option(
+        ..., "--json", "-j", help="JSON payload with fields to update"
     ),
 ):
     """Update a memo."""
-    # Validate inputs
+    # Validate memo_id
     validate_resource_id(memo_id)
+
+    # Parse JSON input
+    try:
+        json_data = json.loads(json_input)
+    except json.JSONDecodeError as e:
+        typer.echo(f"Invalid JSON: {e}", err=True)
+        raise typer.Exit(1)
+
+    # Extract fields from JSON (all optional for update)
+    content = json_data.get("content")
+    linked_decision_id = json_data.get("linked_decision_id")
+    linked_direction_id = json_data.get("linked_direction_id")
+
+    # Validate inputs if provided
     if content:
         validate_safe_input(content, "content")
-    if decision_id:
-        validate_safe_input(decision_id, "decision_id")
-    if direction_id:
-        validate_safe_input(direction_id, "direction_id")
-
-    # Parse JSON input if provided - JSON takes precedence (PATCH semantics)
-    json_data = None
-    if json_input:
-        try:
-            json_data = json.loads(json_input)
-        except json.JSONDecodeError as e:
-            typer.echo(f"Invalid JSON: {e}", err=True)
-            raise typer.Exit(1)
+    if linked_decision_id:
+        validate_safe_input(linked_decision_id, "linked_decision_id")
+    if linked_direction_id:
+        validate_safe_input(linked_direction_id, "linked_direction_id")
 
     if is_server_mode():
         try:
             data = {}
-            # JSON takes precedence over flags
-            if json_data:
-                if "content" in json_data:
-                    data["content"] = json_data["content"]
-                elif content is not None:
-                    data["content"] = content
-                if "linked_decision_id" in json_data:
-                    data["linked_decision_id"] = json_data["linked_decision_id"]
-                elif decision_id is not None:
-                    data["linked_decision_id"] = decision_id
-                if "linked_direction_id" in json_data:
-                    data["linked_direction_id"] = json_data["linked_direction_id"]
-                elif direction_id is not None:
-                    data["linked_direction_id"] = direction_id
-            else:
-                if content is not None:
-                    data["content"] = content
-                if decision_id is not None:
-                    data["linked_decision_id"] = decision_id
-                if direction_id is not None:
-                    data["linked_direction_id"] = direction_id
+            if content is not None:
+                data["content"] = content
+            if linked_decision_id is not None:
+                data["linked_decision_id"] = linked_decision_id
+            if linked_direction_id is not None:
+                data["linked_direction_id"] = linked_direction_id
             api_request("PATCH", f"/api/memos/{memo_id}", data=data)
             typer.echo(f"Updated memo '{memo_id}'.")
         except ServerClientError as e:
@@ -513,81 +471,35 @@ def update_memo(
             typer.echo(f"Memo '{memo_id}' not found.", err=True)
             raise typer.Exit(1)
 
-        # JSON takes precedence over flags
-        if json_data:
-            if "content" in json_data:
-                memo.content = json_data["content"]
-            elif content is not None:
-                memo.content = content
-            if "linked_decision_id" in json_data:
-                # Verify decision exists
-                decision = (
-                    db.query(Decision)
-                    .filter(Decision.id == json_data["linked_decision_id"])
-                    .first()
+        # Apply updates from JSON
+        if content is not None:
+            memo.content = content
+        if linked_decision_id is not None:
+            # Verify decision exists
+            decision = (
+                db.query(Decision).filter(Decision.id == linked_decision_id).first()
+            )
+            if not decision:
+                typer.echo(
+                    f"Decision '{linked_decision_id}' not found.",
+                    err=True,
                 )
-                if not decision:
-                    typer.echo(
-                        f"Decision '{json_data['linked_decision_id']}' not found.",
-                        err=True,
-                    )
-                    raise typer.Exit(1)
-                memo.linked_decision_id = json_data["linked_decision_id"]
-            elif decision_id is not None:
-                # Verify decision exists
-                decision = db.query(Decision).filter(Decision.id == decision_id).first()
-                if not decision:
-                    typer.echo(f"Decision '{decision_id}' not found.", err=True)
-                    raise typer.Exit(1)
-                memo.linked_decision_id = decision_id
-            if "linked_direction_id" in json_data:
-                # Verify direction exists
-                from deciduum.models import Direction
+                raise typer.Exit(1)
+            memo.linked_decision_id = linked_decision_id
+        if linked_direction_id is not None:
+            # Verify direction exists
+            from deciduum.models import Direction
 
-                direction = (
-                    db.query(Direction)
-                    .filter(Direction.id == json_data["linked_direction_id"])
-                    .first()
+            direction = (
+                db.query(Direction).filter(Direction.id == linked_direction_id).first()
+            )
+            if not direction:
+                typer.echo(
+                    f"Direction '{linked_direction_id}' not found.",
+                    err=True,
                 )
-                if not direction:
-                    typer.echo(
-                        f"Direction '{json_data['linked_direction_id']}' not found.",
-                        err=True,
-                    )
-                    raise typer.Exit(1)
-                memo.linked_direction_id = json_data["linked_direction_id"]
-            elif direction_id is not None:
-                # Verify direction exists
-                from deciduum.models import Direction
-
-                direction = (
-                    db.query(Direction).filter(Direction.id == direction_id).first()
-                )
-                if not direction:
-                    typer.echo(f"Direction '{direction_id}' not found.", err=True)
-                    raise typer.Exit(1)
-                memo.linked_direction_id = direction_id
-        else:
-            if content is not None:
-                memo.content = content
-            if decision_id is not None:
-                # Verify decision exists
-                decision = db.query(Decision).filter(Decision.id == decision_id).first()
-                if not decision:
-                    typer.echo(f"Decision '{decision_id}' not found.", err=True)
-                    raise typer.Exit(1)
-                memo.linked_decision_id = decision_id
-            if direction_id is not None:
-                # Verify direction exists
-                from deciduum.models import Direction
-
-                direction = (
-                    db.query(Direction).filter(Direction.id == direction_id).first()
-                )
-                if not direction:
-                    typer.echo(f"Direction '{direction_id}' not found.", err=True)
-                    raise typer.Exit(1)
-                memo.linked_direction_id = direction_id
+                raise typer.Exit(1)
+            memo.linked_direction_id = linked_direction_id
 
         memo.updated_at = datetime.utcnow().isoformat()
         db.commit()

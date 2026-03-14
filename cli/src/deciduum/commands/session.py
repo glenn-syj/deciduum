@@ -1,5 +1,6 @@
 """Session management commands."""
 
+import json
 import os
 import shutil
 from pathlib import Path
@@ -70,7 +71,9 @@ def session_info(
 @session_app.command("create")
 def create_session(
     session_id: str = typer.Argument(..., help="Session ID to create"),
-    name: str = typer.Option(None, "--name", "-n", help="Session display name"),
+    json_input: str = typer.Option(
+        ..., "--json", "-j", help="JSON payload with session fields"
+    ),
 ):
     """Create a new session."""
     db_path = get_session_db_path(session_id)
@@ -79,8 +82,16 @@ def create_session(
         typer.echo(f"Session '{session_id}' already exists.", err=True)
         raise typer.Exit(1)
 
+    try:
+        data = json.loads(json_input)
+    except json.JSONDecodeError as e:
+        typer.echo(f"Invalid JSON: {e}", err=True)
+        raise typer.Exit(1)
+
+    name = data.get("name", session_id)
+
     db_manager = get_db_manager(session_id)
-    db_manager.init_database(name=name or session_id)
+    db_manager.init_database(name=name)
 
     typer.echo(f"Created session '{session_id}' at {db_path}")
 
@@ -91,15 +102,15 @@ def delete_session(
     force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation"),
 ):
     """Delete a session and its database."""
+    current_session = get_session_id()
+    if session_id == current_session:
+        typer.echo("Cannot delete the current session.", err=True)
+        raise typer.Exit(1)
+
     db_path = get_session_db_path(session_id)
 
     if not db_path.exists():
         typer.echo(f"Session '{session_id}' does not exist.", err=True)
-        raise typer.Exit(1)
-
-    current_session = get_session_id()
-    if session_id == current_session:
-        typer.echo("Cannot delete the current session.", err=True)
         raise typer.Exit(1)
 
     if not force:

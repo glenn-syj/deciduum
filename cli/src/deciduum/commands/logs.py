@@ -103,8 +103,9 @@ def add_log(
 @logs_app.command("list")
 def list_logs(
     decision_id: str = Argument(..., help="Decision ID"),
-    json_output: bool = Option(False, "--json", help="Output as JSON"),
-    quiet: bool = Option(False, "--quiet", "-q", help="Output IDs only, one per line"),
+    output_format: Optional[str] = Option(
+        None, "--format", "-f", help="Output format: json, quiet"
+    ),
     limit: int = Option(50, "--limit", "-l", help="Number of logs to show"),
     fields: Optional[str] = Option(
         None,
@@ -113,7 +114,8 @@ def list_logs(
     ),
 ):
     """List all logs for a decision."""
-    # Get output mode
+    json_output = output_format == "json"
+    quiet = output_format == "quiet"
     output_mode = get_output_mode(json_output, quiet)
 
     # Parse fields if provided
@@ -461,8 +463,11 @@ def journey_command(
 @journey_app.command("show")
 def journey(
     decision_id: str = Argument(..., help="Decision ID"),
-    json_output: bool = Option(False, "--json", help="Output as JSON"),
-    quiet: bool = Option(False, "--quiet", "-q", help="Output ID only"),
+    output_format: Optional[str] = Option(
+        None, "--format", "-f", help="Output format: json, quiet"
+    ),
 ):
     """Show full decision journey timeline."""
+    json_output = output_format == "json"
+    quiet = output_format == "quiet"
     journey_command(decision_id, json_output, quiet)
