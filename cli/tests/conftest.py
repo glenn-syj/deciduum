@@ -210,8 +210,8 @@ def cli_with_data(runner, isolated_env):
         [
             "directions",
             "add",
-            "--title",
-            "Test Direction",
+            "--json",
+            '{"title": "Test Direction"}',
         ],
         env={"DECIDUUM_SESSION": session_id},
     )
@@ -230,10 +230,8 @@ def cli_with_data(runner, isolated_env):
         [
             "decisions",
             "add",
-            "--title",
-            "Test Decision",
-            "--direction",
-            direction_id,
+            "--json",
+            f'{{"title": "Test Decision", "direction_id": "{direction_id}"}}',
         ],
         env={"DECIDUUM_SESSION": session_id},
     )
