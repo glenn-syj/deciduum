@@ -1,725 +1,264 @@
 """Schema introspection commands."""
 
+import inspect
 import json
+from typing import Any, Dict, List, Optional, get_type_hints, get_origin, get_args
+
 import typer
-from typing import Optional, List, Dict, Any
+
+# Note: We import subapps directly to avoid circular imports
 
 schema_app = typer.Typer(help="Schema introspection commands.")
 
 
-# Schema definitions for each command group
-# Format: command group -> subcommand -> {description, flags}
-SCHEMA_DEFINITIONS: Dict[str, Dict[str, Dict[str, Any]]] = {
-    "decisions": {
-        "list": {
-            "description": "List all decisions",
-            "flags": [
-                {
-                    "name": "json-output",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Output as JSON",
-                },
-                {
-                    "name": "quiet",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Output IDs only, one per line",
-                },
-                {
-                    "name": "status",
-                    "type": "string",
-                    "required": False,
-                    "description": "Filter by status",
-                },
-                {
-                    "name": "limit",
-                    "type": "integer",
-                    "required": False,
-                    "description": "Number of decisions to show",
-                },
-                {
-                    "name": "one-line",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Show in one-line format",
-                },
-            ],
-        },
-        "add": {
-            "description": "Add a new decision",
-            "flags": [
-                {
-                    "name": "json-input",
-                    "type": "string",
-                    "required": False,
-                    "description": "JSON payload",
-                },
-                {
-                    "name": "title",
-                    "type": "string",
-                    "required": False,
-                    "description": "Decision title",
-                },
-                {
-                    "name": "date",
-                    "type": "string",
-                    "required": False,
-                    "description": "Date (YYYY-MM-DD)",
-                },
-                {
-                    "name": "status",
-                    "type": "string",
-                    "required": False,
-                    "enum": ["ongoing", "completed", "archived"],
-                    "description": "Decision status",
-                },
-                {
-                    "name": "direction",
-                    "type": "string",
-                    "required": False,
-                    "description": "Direction ID",
-                },
-            ],
-        },
-        "show": {
-            "description": "Show a decision's details",
-            "flags": [
-                {
-                    "name": "json-output",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Output as JSON",
-                },
-                {
-                    "name": "quiet",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Output ID only",
-                },
-                {
-                    "name": "with",
-                    "type": "string",
-                    "required": False,
-                    "enum": ["memos", "tasks", "logs", "all"],
-                    "description": "Show related items",
-                },
-            ],
-        },
-        "delete": {
-            "description": "Soft delete a decision",
-            "flags": [
-                {
-                    "name": "force",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Skip confirmation",
-                },
-            ],
-        },
-        "next": {
-            "description": "Show the next decision that needs review based on review_at date",
-            "flags": [
-                {
-                    "name": "json-output",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Output as JSON",
-                },
-                {
-                    "name": "quiet",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Output ID only",
-                },
-            ],
-        },
-        "pending": {
-            "description": "List all pending decisions (ongoing status) that need attention",
-            "flags": [
-                {
-                    "name": "json-output",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Output as JSON",
-                },
-                {
-                    "name": "quiet",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Output IDs only, one per line",
-                },
-                {
-                    "name": "overdue",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Only show overdue decisions",
-                },
-                {
-                    "name": "due-soon",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Show decisions due within 7 days",
-                },
-            ],
-        },
-        "update": {
-            "description": "Update a decision",
-            "flags": [
-                {
-                    "name": "title",
-                    "type": "string",
-                    "required": False,
-                    "description": "Decision title",
-                },
-                {
-                    "name": "status",
-                    "type": "string",
-                    "required": False,
-                    "enum": ["ongoing", "completed", "archived"],
-                    "description": "Status",
-                },
-                {
-                    "name": "direction",
-                    "type": "string",
-                    "required": False,
-                    "description": "Direction ID",
-                },
-                {
-                    "name": "review-at",
-                    "type": "string",
-                    "required": False,
-                    "description": "Review date (YYYY-MM-DD)",
-                },
-            ],
-        },
-    },
-    "tasks": {
-        "list": {
-            "description": "List all tasks",
-            "flags": [
-                {
-                    "name": "json-output",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Output as JSON",
-                },
-                {
-                    "name": "quiet",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Output IDs only, one per line",
-                },
-                {
-                    "name": "status",
-                    "type": "string",
-                    "required": False,
-                    "description": "Filter by status",
-                },
-                {
-                    "name": "decision",
-                    "type": "string",
-                    "required": False,
-                    "description": "Filter by decision ID",
-                },
-                {
-                    "name": "limit",
-                    "type": "integer",
-                    "required": False,
-                    "description": "Number of tasks to show",
-                },
-                {
-                    "name": "one-line",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Show compact one-line output",
-                },
-            ],
-        },
-        "add": {
-            "description": "Add a new task",
-            "flags": [
-                {
-                    "name": "json-input",
-                    "type": "string",
-                    "required": False,
-                    "description": "JSON payload",
-                },
-                {
-                    "name": "title",
-                    "type": "string",
-                    "required": False,
-                    "description": "Task title",
-                },
-                {
-                    "name": "decision",
-                    "type": "string",
-                    "required": False,
-                    "description": "Decision ID to link to",
-                },
-                {
-                    "name": "due-date",
-                    "type": "string",
-                    "required": False,
-                    "description": "Due date (YYYY-MM-DD)",
-                },
-                {
-                    "name": "notes",
-                    "type": "string",
-                    "required": False,
-                    "description": "Task notes",
-                },
-                {
-                    "name": "status",
-                    "type": "string",
-                    "required": False,
-                    "enum": ["pending", "in_progress", "completed"],
-                    "description": "Status",
-                },
-            ],
-        },
-        "show": {
-            "description": "Show a task's details",
-            "flags": [
-                {
-                    "name": "json-output",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Output as JSON",
-                },
-                {
-                    "name": "quiet",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Output ID only",
-                },
-            ],
-        },
-        "complete": {
-            "description": "Mark a task as completed",
-            "flags": [],
-        },
-        "delete": {
-            "description": "Soft delete a task",
-            "flags": [
-                {
-                    "name": "force",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Skip confirmation",
-                },
-            ],
-        },
-        "update": {
-            "description": "Update a task",
-            "flags": [
-                {
-                    "name": "title",
-                    "type": "string",
-                    "required": False,
-                    "description": "Task title",
-                },
-                {
-                    "name": "status",
-                    "type": "string",
-                    "required": False,
-                    "enum": ["pending", "in_progress", "completed"],
-                    "description": "Status",
-                },
-                {
-                    "name": "due-date",
-                    "type": "string",
-                    "required": False,
-                    "description": "Due date (YYYY-MM-DD)",
-                },
-                {
-                    "name": "notes",
-                    "type": "string",
-                    "required": False,
-                    "description": "Task notes",
-                },
-            ],
-        },
-    },
-    "memos": {
-        "list": {
-            "description": "List all memos",
-            "flags": [
-                {
-                    "name": "json-output",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Output as JSON",
-                },
-                {
-                    "name": "quiet",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Output IDs only, one per line",
-                },
-                {
-                    "name": "date",
-                    "type": "string",
-                    "required": False,
-                    "description": "Filter by date",
-                },
-                {
-                    "name": "limit",
-                    "type": "integer",
-                    "required": False,
-                    "description": "Number of memos to show",
-                },
-                {
-                    "name": "one-line",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Show compact one-line format",
-                },
-            ],
-        },
-        "add": {
-            "description": "Add a new memo",
-            "flags": [
-                {
-                    "name": "json-input",
-                    "type": "string",
-                    "required": False,
-                    "description": "JSON payload",
-                },
-                {
-                    "name": "content",
-                    "type": "string",
-                    "required": False,
-                    "description": "Memo content",
-                },
-                {
-                    "name": "date",
-                    "type": "string",
-                    "required": False,
-                    "description": "Date (YYYY-MM-DD)",
-                },
-                {
-                    "name": "decision",
-                    "type": "string",
-                    "required": False,
-                    "description": "Linked decision ID",
-                },
-                {
-                    "name": "direction",
-                    "type": "string",
-                    "required": False,
-                    "description": "Linked direction ID",
-                },
-            ],
-        },
-        "show": {
-            "description": "Show a memo's details",
-            "flags": [
-                {
-                    "name": "json-output",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Output as JSON",
-                },
-                {
-                    "name": "quiet",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Output ID only",
-                },
-            ],
-        },
-        "delete": {
-            "description": "Soft delete a memo",
-            "flags": [
-                {
-                    "name": "force",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Skip confirmation",
-                },
-            ],
-        },
-        "update": {
-            "description": "Update a memo",
-            "flags": [
-                {
-                    "name": "content",
-                    "type": "string",
-                    "required": False,
-                    "description": "Memo content",
-                },
-                {
-                    "name": "decision",
-                    "type": "string",
-                    "required": False,
-                    "description": "Linked decision ID",
-                },
-                {
-                    "name": "direction",
-                    "type": "string",
-                    "required": False,
-                    "description": "Linked direction ID",
-                },
-            ],
-        },
-    },
-    "directions": {
-        "list": {
-            "description": "List all directions",
-            "flags": [
-                {
-                    "name": "json-output",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Output as JSON",
-                },
-                {
-                    "name": "quiet",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Output IDs only, one per line",
-                },
-                {
-                    "name": "limit",
-                    "type": "integer",
-                    "required": False,
-                    "description": "Number of directions to show",
-                },
-                {
-                    "name": "one-line",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Show compact one-line format",
-                },
-            ],
-        },
-        "add": {
-            "description": "Add a new direction",
-            "flags": [
-                {
-                    "name": "json-input",
-                    "type": "string",
-                    "required": False,
-                    "description": "JSON payload",
-                },
-                {
-                    "name": "title",
-                    "type": "string",
-                    "required": False,
-                    "description": "Direction title",
-                },
-            ],
-        },
-        "show": {
-            "description": "Show a direction's details",
-            "flags": [
-                {
-                    "name": "json-output",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Output as JSON",
-                },
-                {
-                    "name": "quiet",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Output ID only",
-                },
-            ],
-        },
-        "delete": {
-            "description": "Soft delete a direction",
-            "flags": [
-                {
-                    "name": "force",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Skip confirmation",
-                },
-            ],
-        },
-        "update": {
-            "description": "Update a direction",
-            "flags": [
-                {
-                    "name": "title",
-                    "type": "string",
-                    "required": False,
-                    "description": "Direction title",
-                },
-            ],
-        },
-    },
-    "logs": {
-        "add": {
-            "description": "Add a log entry to a decision",
-            "flags": [
-                {
-                    "name": "type",
-                    "type": "string",
-                    "required": False,
-                    "enum": ["note", "reflection", "state_change"],
-                    "description": "Log type",
-                },
-                {
-                    "name": "content",
-                    "type": "string",
-                    "required": True,
-                    "description": "Log content",
-                },
-                {
-                    "name": "source",
-                    "type": "string",
-                    "required": False,
-                    "description": "Source (human/system)",
-                },
-            ],
-        },
-        "list": {
-            "description": "List all logs for a decision",
-            "flags": [
-                {
-                    "name": "json-output",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Output as JSON",
-                },
-                {
-                    "name": "quiet",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Output IDs only, one per line",
-                },
-                {
-                    "name": "limit",
-                    "type": "integer",
-                    "required": False,
-                    "description": "Number of logs to show",
-                },
-            ],
-        },
-        "delete": {
-            "description": "Delete a log entry",
-            "flags": [
-                {
-                    "name": "force",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Skip confirmation",
-                },
-            ],
-        },
-    },
-    "journey": {
-        "show": {
-            "description": "Show full decision journey timeline",
-            "flags": [
-                {
-                    "name": "json-output",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Output as JSON",
-                },
-                {
-                    "name": "quiet",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Output ID only",
-                },
-            ],
-        },
-    },
-    "session": {
-        "list": {
-            "description": "List all existing sessions",
-            "flags": [],
-        },
-        "info": {
-            "description": "Show information about a session",
-            "flags": [],
-        },
-        "create": {
-            "description": "Create a new session",
-            "flags": [
-                {
-                    "name": "name",
-                    "type": "string",
-                    "required": False,
-                    "description": "Session display name",
-                },
-            ],
-        },
-        "delete": {
-            "description": "Delete a session and its database",
-            "flags": [
-                {
-                    "name": "force",
-                    "type": "boolean",
-                    "required": False,
-                    "description": "Skip confirmation",
-                },
-            ],
-        },
-        "path": {
-            "description": "Show the database path for a session",
-            "flags": [],
-        },
-    },
-    "config": {
-        "set": {
-            "description": "Set a configuration value",
-            "flags": [],
-        },
-        "unset": {
-            "description": "Remove a configuration value",
-            "flags": [],
-        },
-        "show": {
-            "description": "Show all configuration values",
-            "flags": [],
-        },
-        "get": {
-            "description": "Get a specific configuration value",
-            "flags": [],
-        },
-    },
-    "today": {
-        "": {
-            "description": "Show today's summary",
-            "flags": [],
-        },
-    },
-}
+def _python_type_to_json_type(py_type: Any) -> str:
+    """Convert Python type to JSON-serializable type name."""
+    # Handle Optional types (Union with None)
+    origin = get_origin(py_type)
+    if origin is not None:
+        # Handle Optional[X] which is Union[X, None]
+        args = get_args(py_type)
+        if type(None) in args:
+            # It's Optional[X], get the non-None type
+            non_none_types = [a for a in args if a is not type(None)]
+            if non_none_types:
+                py_type = non_none_types[0]
+
+    # Handle typing.List, typing.Optional, etc.
+    origin = get_origin(py_type)
+    if origin is list:
+        return "array"
+    if origin is dict:
+        return "object"
+
+    # Handle regular types
+    type_name = str(py_type).lower()
+
+    if "int" in type_name and "string" not in type_name:
+        return "integer"
+    elif "float" in type_name:
+        return "number"
+    elif "bool" in type_name:
+        return "boolean"
+    elif "str" in type_name or "string" in type_name:
+        return "string"
+    elif "path" in type_name:
+        return "string"  # Path is serialized as string
+    else:
+        return "string"  # Default to string
+
+
+def _get_param_schema(param_name: str, param: inspect.Parameter) -> Dict[str, Any]:
+    """Extract schema from a single parameter.
+
+    - Detect if required: param.default is ... (Ellipsis)
+    - Extract type from param.annotation
+    - Extract help from param.default.help if available
+    - Extract choices/enum from param.default.choices if available
+    - Convert to JSON-serializable type names (string, int, bool)
+    """
+    # Determine if required (default is Ellipsis)
+    # For Typer Option/Argument objects, check param.default.default
+    # For regular parameters, check param.default directly
+    is_required = False
+    if hasattr(param.default, "default"):
+        # It's a Typer Option/Argument - check inner default
+        is_required = param.default.default is ...
+    else:
+        # Regular parameter or bare Ellipsis
+        is_required = param.default is ...
+
+    # Extract type
+    param_type = "string"  # Default
+    if param.annotation is not inspect.Parameter.empty:
+        param_type = _python_type_to_json_type(param.annotation)
+
+    # Extract help text and choices from default (if it's a Typer Option)
+    description = ""
+    choices = None
+
+    # Try to get the long option name from Typer's param_decls
+    flag_name = param.name.replace("_", "-")
+
+    if param.default is not inspect.Parameter.empty and param.default is not None:
+        # Check if it's a Typer Option/Argument object
+        default_val = param.default
+        if hasattr(default_val, "help") and default_val.help:
+            description = default_val.help
+        if hasattr(default_val, "choices") and default_val.choices:
+            choices = list(default_val.choices)
+        # Also check for enum attribute
+        if hasattr(default_val, "enum") and default_val.enum:
+            choices = list(default_val.enum)
+
+        # Try to extract the long option name from param_decls
+        if hasattr(default_val, "param_decls") and default_val.param_decls:
+            param_decls = default_val.param_decls
+            # Find the long option (starts with --)
+            for decl in param_decls:
+                if decl.startswith("--"):
+                    # Remove leading dashes
+                    flag_name = decl[2:]
+                    break
+                elif decl.startswith("-"):
+                    # It's a short option, skip
+                    continue
+
+    # Handle case where it's an Argument vs Option
+    # Arguments don't have the -- prefix in help, but we still want the name
+    result = {
+        "name": flag_name,
+        "type": param_type,
+        "required": is_required,
+    }
+
+    if description:
+        result["description"] = description
+    if choices:
+        result["enum"] = choices
+
+    return result
+
+
+def _get_command_schema(cmd_name: str, cmd) -> Dict[str, Any]:
+    """Extract schema for a single command using inspect.signature(cmd.callback)"""
+    # Get the callback function (the actual command function)
+    callback = cmd.callback
+
+    if callback is None:
+        return None
+
+    # Get function signature
+    try:
+        sig = inspect.signature(callback)
+    except (ValueError, TypeError):
+        return None
+
+    # Get description from docstring
+    description = ""
+    if callback.__doc__:
+        # Take first line of docstring
+        description = callback.__doc__.strip().split("\n")[0].strip()
+
+    # Extract parameters (skip 'ctx' which is always first in Typer commands)
+    flags = []
+    for param_name, param in sig.parameters.items():
+        # Skip 'ctx' parameter which is added by Typer
+        if param_name == "ctx":
+            continue
+
+        flag_schema = _get_param_schema(param_name, param)
+        flags.append(flag_schema)
+
+    return {
+        "command": cmd_name,
+        "description": description,
+        "flags": flags,
+    }
+
+
+def _get_subapp_schema(subapp, prefix: str = "") -> List[Dict[str, Any]]:
+    """Extract schema for all commands in a subapp."""
+    schemas = []
+
+    # subapp.registered_groups contains the commands
+    # Each group has registered_commands
+    if hasattr(subapp, "registered_groups"):
+        for group in subapp.registered_groups:
+            # This group might have subcommands
+            if hasattr(group, "registered_commands"):
+                for cmd in group.registered_commands:
+                    cmd_name = f"{prefix} {cmd.name}" if prefix else cmd.name
+                    schema = _get_command_schema(cmd_name, cmd)
+                    if schema:
+                        schemas.append(schema)
+
+    # Also check for direct commands on the app
+    if hasattr(subapp, "registered_commands"):
+        for cmd in subapp.registered_commands:
+            cmd_name = f"{prefix} {cmd.name}" if prefix else cmd.name
+            schema = _get_command_schema(cmd_name, cmd)
+            if schema:
+                schemas.append(schema)
+
+    return schemas
+
+
+def _get_today_schema() -> Dict[str, Any]:
+    """Get schema for the today command (a plain function, not a typer app)."""
+    from deciduum.commands.today import today_command
+
+    try:
+        sig = inspect.signature(today_command)
+    except (ValueError, TypeError):
+        return None
+
+    description = ""
+    if today_command.__doc__:
+        description = today_command.__doc__.strip().split("\n")[0].strip()
+
+    return {
+        "command": "today",
+        "description": description,
+        "flags": [],
+    }
+
+
+def generate_full_schema() -> List[dict]:
+    """Generate schema for all commands by walking app.registered_groups"""
+    schemas = []
+
+    # Import the subapps
+    from deciduum.commands.session import session_app
+    from deciduum.commands.config import config_app
+    from deciduum.commands.decisions import decisions_app
+    from deciduum.commands.memos import memos_app
+    from deciduum.commands.directions import directions_app
+    from deciduum.commands.tasks import tasks_app
+    from deciduum.commands.logs import logs_app
+    from deciduum.commands.logs import journey_app
+
+    # Add each subapp's commands
+    subapps = [
+        ("decisions", decisions_app),
+        ("tasks", tasks_app),
+        ("memos", memos_app),
+        ("directions", directions_app),
+        ("logs", logs_app),
+        ("journey", journey_app),
+        ("session", session_app),
+        ("config", config_app),
+    ]
+
+    for name, subapp in subapps:
+        subapp_schemas = _get_subapp_schema(subapp, prefix=name)
+        schemas.extend(subapp_schemas)
+
+    # Add today command
+    today_schema = _get_today_schema()
+    if today_schema:
+        schemas.append(today_schema)
+
+    return schemas
 
 
 def _build_command_schema(group: str, subcommand: str) -> Optional[Dict[str, Any]]:
     """Build schema for a specific command."""
-    if group in SCHEMA_DEFINITIONS:
-        if subcommand in SCHEMA_DEFINITIONS[group]:
-            schema = SCHEMA_DEFINITIONS[group][subcommand]
-            return {
-                "command": f"{group} {subcommand}",
-                "description": schema["description"],
-                "flags": schema["flags"],
-            }
+    schemas = generate_full_schema()
+
+    # Find matching command
+    target_cmd = f"{group} {subcommand}" if subcommand else group
+
+    for schema in schemas:
+        if schema["command"] == target_cmd:
+            return schema
+
     return None
 
 
 def _list_all_schemas() -> List[Dict[str, Any]]:
     """List all available command schemas."""
-    schemas = []
-    for group, subcommands in SCHEMA_DEFINITIONS.items():
-        for subcommand, schema in subcommands.items():
-            cmd_name = f"{group} {subcommand}" if subcommand else group
-            schemas.append(
-                {
-                    "command": cmd_name,
-                    "description": schema["description"],
-                    "flags": schema["flags"],
-                }
-            )
-    return schemas
+    return generate_full_schema()
 
 
 @schema_app.command("decisions")
@@ -739,14 +278,9 @@ def schema_decisions(
     else:
         # List all decisions subcommands
         schemas = []
-        for sub, schema in SCHEMA_DEFINITIONS.get("decisions", {}).items():
-            schemas.append(
-                {
-                    "command": f"decisions {sub}",
-                    "description": schema["description"],
-                    "flags": schema["flags"],
-                }
-            )
+        for schema in generate_full_schema():
+            if schema["command"].startswith("decisions "):
+                schemas.append(schema)
         typer.echo(json.dumps(schemas, indent=2))
 
 
@@ -766,14 +300,9 @@ def schema_tasks(
             raise typer.Exit(1)
     else:
         schemas = []
-        for sub, schema in SCHEMA_DEFINITIONS.get("tasks", {}).items():
-            schemas.append(
-                {
-                    "command": f"tasks {sub}",
-                    "description": schema["description"],
-                    "flags": schema["flags"],
-                }
-            )
+        for schema in generate_full_schema():
+            if schema["command"].startswith("tasks "):
+                schemas.append(schema)
         typer.echo(json.dumps(schemas, indent=2))
 
 
@@ -793,14 +322,9 @@ def schema_memos(
             raise typer.Exit(1)
     else:
         schemas = []
-        for sub, schema in SCHEMA_DEFINITIONS.get("memos", {}).items():
-            schemas.append(
-                {
-                    "command": f"memos {sub}",
-                    "description": schema["description"],
-                    "flags": schema["flags"],
-                }
-            )
+        for schema in generate_full_schema():
+            if schema["command"].startswith("memos "):
+                schemas.append(schema)
         typer.echo(json.dumps(schemas, indent=2))
 
 
@@ -820,14 +344,9 @@ def schema_directions(
             raise typer.Exit(1)
     else:
         schemas = []
-        for sub, schema in SCHEMA_DEFINITIONS.get("directions", {}).items():
-            schemas.append(
-                {
-                    "command": f"directions {sub}",
-                    "description": schema["description"],
-                    "flags": schema["flags"],
-                }
-            )
+        for schema in generate_full_schema():
+            if schema["command"].startswith("directions "):
+                schemas.append(schema)
         typer.echo(json.dumps(schemas, indent=2))
 
 
@@ -847,14 +366,9 @@ def schema_logs(
             raise typer.Exit(1)
     else:
         schemas = []
-        for sub, schema in SCHEMA_DEFINITIONS.get("logs", {}).items():
-            schemas.append(
-                {
-                    "command": f"logs {sub}",
-                    "description": schema["description"],
-                    "flags": schema["flags"],
-                }
-            )
+        for schema in generate_full_schema():
+            if schema["command"].startswith("logs "):
+                schemas.append(schema)
         typer.echo(json.dumps(schemas, indent=2))
 
 
@@ -872,14 +386,9 @@ def schema_journey(
             raise typer.Exit(1)
     else:
         schemas = []
-        for sub, schema in SCHEMA_DEFINITIONS.get("journey", {}).items():
-            schemas.append(
-                {
-                    "command": f"journey {sub}",
-                    "description": schema["description"],
-                    "flags": schema["flags"],
-                }
-            )
+        for schema in generate_full_schema():
+            if schema["command"].startswith("journey "):
+                schemas.append(schema)
         typer.echo(json.dumps(schemas, indent=2))
 
 
@@ -899,14 +408,9 @@ def schema_session(
             raise typer.Exit(1)
     else:
         schemas = []
-        for sub, schema in SCHEMA_DEFINITIONS.get("session", {}).items():
-            schemas.append(
-                {
-                    "command": f"session {sub}",
-                    "description": schema["description"],
-                    "flags": schema["flags"],
-                }
-            )
+        for schema in generate_full_schema():
+            if schema["command"].startswith("session "):
+                schemas.append(schema)
         typer.echo(json.dumps(schemas, indent=2))
 
 
@@ -926,14 +430,9 @@ def schema_config(
             raise typer.Exit(1)
     else:
         schemas = []
-        for sub, schema in SCHEMA_DEFINITIONS.get("config", {}).items():
-            schemas.append(
-                {
-                    "command": f"config {sub}",
-                    "description": schema["description"],
-                    "flags": schema["flags"],
-                }
-            )
+        for schema in generate_full_schema():
+            if schema["command"].startswith("config "):
+                schemas.append(schema)
         typer.echo(json.dumps(schemas, indent=2))
 
 
@@ -941,9 +440,11 @@ def schema_config(
 def schema_today():
     """Show schema for today command."""
     result = _build_command_schema("today", "")
-    # Fix the command name to not have trailing space
-    result["command"] = "today"
-    typer.echo(json.dumps(result, indent=2))
+    if result:
+        typer.echo(json.dumps(result, indent=2))
+    else:
+        typer.echo("Could not generate schema for today command", err=True)
+        raise typer.Exit(1)
 
 
 @schema_app.command("all")

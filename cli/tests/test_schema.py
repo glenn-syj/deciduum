@@ -76,11 +76,12 @@ class TestSchemaCommands:
         assert isinstance(data, dict)
         assert "flags" in data
         flag_names = [f["name"] for f in data["flags"]]
-        assert "json-input" in flag_names
-        assert "title" in flag_names
-        assert "date" in flag_names
-        assert "status" in flag_names
-        assert "direction" in flag_names
+        # Only json is the actual flag - other fields are in the JSON payload
+        assert "json" in flag_names
+        # Verify json is required
+        for flag in data["flags"]:
+            if flag["name"] == "json":
+                assert flag.get("required") is True
 
     def test_schema_decisions_show_flags(self, runner, isolated_env):
         """Test schema decisions show includes expected flags."""
@@ -137,12 +138,8 @@ class TestSchemaCommands:
         assert isinstance(data, dict)
         assert "flags" in data
         flag_names = [f["name"] for f in data["flags"]]
-        assert "json-input" in flag_names
-        assert "title" in flag_names
-        assert "decision" in flag_names
-        assert "due-date" in flag_names
-        assert "notes" in flag_names
-        assert "status" in flag_names
+        # Only json is the actual flag - other fields are in the JSON payload
+        assert "json" in flag_names
 
     # Memos tests
     def test_schema_memos_list_all(self, runner, isolated_env):
@@ -173,11 +170,8 @@ class TestSchemaCommands:
         assert isinstance(data, dict)
         assert "flags" in data
         flag_names = [f["name"] for f in data["flags"]]
-        assert "json-input" in flag_names
-        assert "content" in flag_names
-        assert "date" in flag_names
-        assert "decision" in flag_names
-        assert "direction" in flag_names
+        # Only json is the actual flag - other fields are in the JSON payload
+        assert "json" in flag_names
 
     # Directions tests
     def test_schema_directions_list_all(self, runner, isolated_env):
@@ -208,8 +202,8 @@ class TestSchemaCommands:
         assert isinstance(data, dict)
         assert "flags" in data
         flag_names = [f["name"] for f in data["flags"]]
-        assert "json-input" in flag_names
-        assert "title" in flag_names
+        # Only json is the actual flag - other fields are in the JSON payload
+        assert "json" in flag_names
 
     # Logs tests
     def test_schema_logs_list_all(self, runner, isolated_env):
@@ -229,7 +223,7 @@ class TestSchemaCommands:
             assert "flags" in item
 
     def test_schema_logs_add_flags(self, runner, isolated_env):
-        """Test schema logs add includes expected flags with enum and required."""
+        """Test schema logs add includes expected flags with json input."""
         result = runner.invoke(
             app,
             ["schema", "logs", "add"],
@@ -240,14 +234,11 @@ class TestSchemaCommands:
         assert isinstance(data, dict)
         assert "flags" in data
         flag_names = [f["name"] for f in data["flags"]]
-        assert "type" in flag_names
-        assert "content" in flag_names
-        assert "source" in flag_names
-        # Check for enum and required
+        # Only json is the actual flag
+        assert "json" in flag_names
+        # Check for required json flag
         for flag in data["flags"]:
-            if flag["name"] == "type":
-                assert "enum" in flag
-            if flag["name"] == "content":
+            if flag["name"] == "json":
                 assert flag.get("required") is True
 
     # Journey tests

@@ -1,5 +1,6 @@
 """Decision logs and journey commands."""
 
+import json
 from datetime import datetime
 from typing import Optional
 
@@ -29,31 +30,47 @@ def _filter_fields(data: dict, fields: list) -> dict:
 
 @logs_app.command("add")
 def add_log(
-    decision_id: str = Argument(..., help="Decision ID"),
-    log_type: str = Option(
-        "note",
-        "--type",
-        "-t",
-        help="Log type (note/reflection/state_change)",
-    ),
-    content: str = Option(..., "--content", "-c", help="Log content"),
-    source: str = Option("human", "--source", "-s", help="Source (human/system)"),
+    json_input: str = Option(..., "--json", "-j", help="JSON payload with log fields"),
 ):
     """Add a log entry to a decision."""
+    # Parse JSON input
+    try:
+        json_data = json.loads(json_input)
+    except json.JSONDecodeError as e:
+        typer.echo(f"Invalid JSON: {e}", err=True)
+        raise typer.Exit(1)
+
+    # Extract fields from JSON
+    decision_id = json_data.get("decision_id")
+    log_type = json_data.get("type")
+    content = json_data.get("content")
+    source = json_data.get("source", "human")
+
+    # Validate required fields
+    if not decision_id:
+        typer.echo("Error: 'decision_id' is required in JSON payload.", err=True)
+        raise typer.Exit(1)
+    if not log_type:
+        typer.echo("Error: 'type' is required in JSON payload.", err=True)
+        raise typer.Exit(1)
+    if not content:
+        typer.echo("Error: 'content' is required in JSON payload.", err=True)
+        raise typer.Exit(1)
+
     # Validate inputs
     validate_resource_id(decision_id)
     validate_safe_input(content, "content")
 
+    valid_types = ["note", "reflection", "state_change"]
+    if log_type not in valid_types:
+        typer.echo(
+            f"Invalid log type. Must be one of: {', '.join(valid_types)}",
+            err=True,
+        )
+        raise typer.Exit(1)
+
     if is_server_mode():
         try:
-            valid_types = ["note", "reflection", "state_change"]
-            if log_type not in valid_types:
-                typer.echo(
-                    f"Invalid log type. Must be one of: {', '.join(valid_types)}",
-                    err=True,
-                )
-                raise typer.Exit(1)
-
             data = {
                 "decision_id": decision_id,
                 "type": log_type,
@@ -74,14 +91,6 @@ def add_log(
         decision = db.query(Decision).filter(Decision.id == decision_id).first()
         if not decision:
             typer.echo(f"Decision '{decision_id}' not found.", err=True)
-            raise typer.Exit(1)
-
-        # Validate log type
-        valid_types = ["note", "reflection", "state_change"]
-        if log_type not in valid_types:
-            typer.echo(
-                f"Invalid log type. Must be one of: {', '.join(valid_types)}", err=True
-            )
             raise typer.Exit(1)
 
         log = DecisionLog(
