@@ -6,7 +6,84 @@ from typing import Any, Dict, List, Optional, get_type_hints, get_origin, get_ar
 
 import typer
 
+# Import schema classes for JSON payload extraction
+from deciduum.schemas import *  # noqa: F401, F403
+
 # Note: We import subapps directly to avoid circular imports
+
+# Map of (app_name, command_name) -> (create_model_name, module_name)
+# This maps CLI commands to their Pydantic payload schemas
+PAYLOAD_MODELS = {
+    ("decisions", "add"): ("DecisionCreate", "decision.py"),
+    ("decisions", "update"): ("DecisionUpdate", "decision.py"),
+    ("tasks", "add"): ("TaskCreate", "task.py"),
+    ("tasks", "update"): ("TaskUpdate", "task.py"),
+    ("memos", "add"): ("MemoCreate", "memo.py"),
+    ("memos", "update"): ("MemoUpdate", "memo.py"),
+    ("directions", "add"): ("DirectionCreate", "direction.py"),
+    ("directions", "update"): ("DirectionUpdate", "direction.py"),
+    ("logs", "add"): ("LogCreate", "log.py"),
+    ("session", "create"): ("SessionCreate", "session.py"),
+}
+
+
+def _get_model_from_schema(model_name: str) -> Optional[type]:
+    """Get a Pydantic model class by name from the schemas module."""
+    import deciduum.schemas as schemas_module
+
+    return getattr(schemas_module, model_name, None)
+
+
+def _extract_json_fields(model_class: type) -> Dict[str, Any]:
+    """Extract JSON field definitions from a Pydantic model."""
+    if model_class is None:
+        return {}
+
+    try:
+        json_schema = model_class.model_json_schema()
+    except Exception:
+        return {}
+
+    json_fields = {}
+    properties = json_schema.get("properties", {})
+    required_fields = json_schema.get("required", [])
+
+    for field_name, field_schema in properties.items():
+        # Determine if required
+        is_required = field_name in required_fields
+
+        # Extract type
+        field_type = field_schema.get("type", "string")
+
+        # Handle Pydantic's "anyOf" for optional fields with defaults
+        if "anyOf" in field_schema:
+            # Get the first non-null type
+            for type_info in field_schema["anyOf"]:
+                if type_info.get("type") != "null":
+                    field_type = type_info.get("type", "string")
+                    break
+
+        # Extract description
+        description = field_schema.get("description", "")
+
+        # Extract default value
+        default = field_schema.get("default")
+
+        field_info = {
+            "type": field_type,
+            "required": is_required,
+        }
+
+        if description:
+            field_info["description"] = description
+
+        if default is not None:
+            field_info["default"] = default
+
+        json_fields[field_name] = field_info
+
+    return json_fields
+
 
 schema_app = typer.Typer(help="Schema introspection commands.")
 
@@ -243,7 +320,7 @@ def generate_full_schema() -> List[dict]:
 
 
 def _build_command_schema(group: str, subcommand: str) -> Optional[Dict[str, Any]]:
-    """Build schema for a specific command."""
+    """Build schema for a specific command, including JSON payload schema if available."""
     schemas = generate_full_schema()
 
     # Find matching command
@@ -251,6 +328,14 @@ def _build_command_schema(group: str, subcommand: str) -> Optional[Dict[str, Any
 
     for schema in schemas:
         if schema["command"] == target_cmd:
+            # Check if this command has a JSON payload model
+            if subcommand and (group, subcommand) in PAYLOAD_MODELS:
+                model_name, _ = PAYLOAD_MODELS[(group, subcommand)]
+                model_class = _get_model_from_schema(model_name)
+                if model_class:
+                    json_fields = _extract_json_fields(model_class)
+                    if json_fields:
+                        schema["json_fields"] = json_fields
             return schema
 
     return None
