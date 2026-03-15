@@ -95,8 +95,7 @@ class TestSchemaCommands:
         assert isinstance(data, dict)
         assert "flags" in data
         flag_names = [f["name"] for f in data["flags"]]
-        assert "json-output" in flag_names
-        assert "quiet" in flag_names
+        assert "format" in flag_names
         assert "with" in flag_names
 
     def test_schema_decisions_invalid_subcommand(self, runner, isolated_env):
@@ -270,8 +269,7 @@ class TestSchemaCommands:
         assert isinstance(data, dict)
         assert "flags" in data
         flag_names = [f["name"] for f in data["flags"]]
-        assert "json-output" in flag_names
-        assert "quiet" in flag_names
+        assert "format" in flag_names
 
     # Session tests
     def test_schema_session_list_all(self, runner, isolated_env):
@@ -302,7 +300,8 @@ class TestSchemaCommands:
         assert isinstance(data, dict)
         assert "flags" in data
         flag_names = [f["name"] for f in data["flags"]]
-        assert "name" in flag_names
+        assert "session-id" in flag_names
+        assert "json" in flag_names
 
     # Config tests
     def test_schema_config_list_all(self, runner, isolated_env):
@@ -322,7 +321,7 @@ class TestSchemaCommands:
             assert "flags" in item
 
     def test_schema_config_set_flags(self, runner, isolated_env):
-        """Test schema config set returns empty flags array."""
+        """Test schema config set returns expected flags."""
         result = runner.invoke(
             app,
             ["schema", "config", "set"],
@@ -332,8 +331,10 @@ class TestSchemaCommands:
         data = _parse_json_output(result.stdout)
         assert isinstance(data, dict)
         assert "flags" in data
-        # config set has empty flags array
-        assert data["flags"] == []
+        # config set has key and value flags
+        flag_names = [f["name"] for f in data["flags"]]
+        assert "key" in flag_names
+        assert "value" in flag_names
 
     # Today tests
     def test_schema_today(self, runner, isolated_env):

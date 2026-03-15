@@ -1470,11 +1470,8 @@ class TestJourneyCommands:
             [
                 "logs",
                 "add",
-                decision_id,
-                "--content",
-                "First log entry",
-                "--type",
-                "note",
+                "--json",
+                f'{{"decision_id": "{decision_id}", "content": "First log entry", "type": "note"}}',
             ],
             env={"DECIDUUM_SESSION": "test-session"},
         )
@@ -1483,11 +1480,8 @@ class TestJourneyCommands:
             [
                 "logs",
                 "add",
-                decision_id,
-                "--content",
-                "Second log entry",
-                "--type",
-                "reflection",
+                "--json",
+                f'{{"decision_id": "{decision_id}", "content": "Second log entry", "type": "reflection"}}',
             ],
             env={"DECIDUUM_SESSION": "test-session"},
         )
@@ -1562,11 +1556,8 @@ class TestJourneyCommands:
             [
                 "logs",
                 "add",
-                decision_id,
-                "--content",
-                "Test log content",
-                "--type",
-                "note",
+                "--json",
+                f'{{"decision_id": "{decision_id}", "content": "Test log content", "type": "note"}}',
             ],
             env={"DECIDUUM_SESSION": "test-session"},
         )
@@ -1642,11 +1633,8 @@ class TestLogCommands:
             [
                 "logs",
                 "add",
-                decision_id,
-                "--type",
-                "note",
-                "--content",
-                "Initial research complete",
+                "--json",
+                f'{{"decision_id": "{decision_id}", "type": "note", "content": "Initial research complete"}}',
             ],
             env={"DECIDUUM_SESSION": "test-session"},
         )
@@ -1673,13 +1661,8 @@ class TestLogCommands:
             [
                 "logs",
                 "add",
-                decision_id,
-                "--type",
-                "note",
-                "--content",
-                "System reminder",
-                "--source",
-                "system",
+                "--json",
+                f'{{"decision_id": "{decision_id}", "type": "note", "content": "System reminder", "source": "system"}}',
             ],
             env={"DECIDUUM_SESSION": "test-session"},
         )
@@ -1706,11 +1689,8 @@ class TestLogCommands:
             [
                 "logs",
                 "add",
-                decision_id,
-                "--type",
-                "reflection",
-                "--content",
-                "Better approach is to start with basics",
+                "--json",
+                f'{{"decision_id": "{decision_id}", "type": "reflection", "content": "Better approach is to start with basics"}}',
             ],
             env={"DECIDUUM_SESSION": "test-session"},
         )
@@ -1737,11 +1717,8 @@ class TestLogCommands:
             [
                 "logs",
                 "add",
-                decision_id,
-                "--type",
-                "state_change",
-                "--content",
-                "Status changed to completed",
+                "--json",
+                f'{{"decision_id": "{decision_id}", "type": "state_change", "content": "Status changed to completed"}}',
             ],
             env={"DECIDUUM_SESSION": "test-session"},
         )
@@ -1755,11 +1732,8 @@ class TestLogCommands:
             [
                 "logs",
                 "add",
-                "invalid-id",
-                "--type",
-                "note",
-                "--content",
-                "Test content",
+                "--json",
+                '{"decision_id": "invalid-id", "type": "note", "content": "Test content"}',
             ],
             env={"DECIDUUM_SESSION": "test-session"},
         )
@@ -1786,11 +1760,8 @@ class TestLogCommands:
             [
                 "logs",
                 "add",
-                decision_id,
-                "--type",
-                "invalid_type",
-                "--content",
-                "Test content",
+                "--json",
+                f'{{"decision_id": "{decision_id}", "type": "invalid_type", "content": "Test content"}}',
             ],
             env={"DECIDUUM_SESSION": "test-session"},
         )
@@ -1841,11 +1812,8 @@ class TestLogCommands:
             [
                 "logs",
                 "add",
-                decision_id,
-                "--type",
-                "note",
-                "--content",
-                "Initial research",
+                "--json",
+                f'{{"decision_id": "{decision_id}", "type": "note", "content": "Initial research"}}',
             ],
             env={"DECIDUUM_SESSION": "test-session"},
         )
@@ -1879,11 +1847,8 @@ class TestLogCommands:
             [
                 "logs",
                 "add",
-                decision_id,
-                "--type",
-                "note",
-                "--content",
-                "Initial research",
+                "--json",
+                f'{{"decision_id": "{decision_id}", "type": "note", "content": "Initial research"}}',
             ],
             env={"DECIDUUM_SESSION": "test-session"},
         )
@@ -1917,11 +1882,8 @@ class TestLogCommands:
             [
                 "logs",
                 "add",
-                decision_id,
-                "--type",
-                "note",
-                "--content",
-                "Initial research",
+                "--json",
+                f'{{"decision_id": "{decision_id}", "type": "note", "content": "Initial research"}}',
             ],
             env={"DECIDUUM_SESSION": "test-session"},
         )
@@ -1957,11 +1919,8 @@ class TestLogCommands:
                 [
                     "logs",
                     "add",
-                    decision_id,
-                    "--type",
-                    "note",
-                    "--content",
-                    f"Log entry {i}",
+                    "--json",
+                    f'{{"decision_id": "{decision_id}", "type": "note", "content": "Log entry {i}"}}',
                 ],
                 env={"DECIDUUM_SESSION": "test-session"},
             )
@@ -2004,11 +1963,8 @@ class TestLogCommands:
             [
                 "logs",
                 "add",
-                decision_id,
-                "--type",
-                "note",
-                "--content",
-                "To be deleted",
+                "--json",
+                f'{{"decision_id": "{decision_id}", "type": "note", "content": "To be deleted"}}',
             ],
             env={"DECIDUUM_SESSION": "test-session"},
         )
@@ -2057,11 +2013,8 @@ class TestLogCommands:
             [
                 "logs",
                 "add",
-                decision_id,
-                "--type",
-                "note",
-                "--content",
-                "To cancel delete",
+                "--json",
+                f'{{"decision_id": "{decision_id}", "type": "note", "content": "To cancel delete"}}',
             ],
             env={"DECIDUUM_SESSION": "test-session"},
         )
