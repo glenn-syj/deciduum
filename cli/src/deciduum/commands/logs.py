@@ -1,14 +1,18 @@
 """Decision logs and journey commands."""
 
+import json
 from datetime import datetime
 from typing import Optional
 
 import typer
 from typer import Option, Argument
 
+from deciduum.schemas import LogCreate
 from deciduum.database import get_db, is_server_mode
 from deciduum.server_client import api_request, ServerClientError, unwrap_response
 from deciduum.models import Decision, DecisionLog
+from deciduum.output import get_output_mode, OutputMode, echo_json
+from deciduum.validation import validate_safe_input, validate_resource_id
 
 logs_app = typer.Typer(help="Decision logs commands.")
 journey_app = typer.Typer(help="Decision journey commands.")
@@ -20,29 +24,43 @@ def _handle_server_mode(e: ServerClientError) -> None:
     raise typer.Exit(1)
 
 
+def _filter_fields(data: dict, fields: list) -> dict:
+    """Filter dictionary to only include specified fields."""
+    return {k: v for k, v in data.items() if k in fields}
+
+
 @logs_app.command("add")
 def add_log(
-    decision_id: str = Argument(..., help="Decision ID"),
-    log_type: str = Option(
-        "note",
-        "--type",
-        "-t",
-        help="Log type (note/reflection/state_change)",
-    ),
-    content: str = Option(..., "--content", "-c", help="Log content"),
-    source: str = Option("human", "--source", "-s", help="Source (human/system)"),
+    json_input: str = Option(..., "--json", "-j", help="JSON payload with log fields"),
 ):
     """Add a log entry to a decision."""
+    # Validate JSON input using Pydantic
+    try:
+        payload = LogCreate.model_validate_json(json_input)
+    except Exception as e:
+        typer.echo(f"Invalid JSON: {e}", err=True)
+        raise typer.Exit(1)
+
+    # Access fields via payload.decision_id, payload.type, payload.content, payload.source
+    decision_id = payload.decision_id
+    log_type = payload.type
+    content = payload.content
+    source = payload.source
+
+    # Validate inputs
+    validate_resource_id(decision_id)
+    validate_safe_input(content, "content")
+
+    valid_types = ["note", "reflection", "state_change"]
+    if log_type not in valid_types:
+        typer.echo(
+            f"Invalid log type. Must be one of: {', '.join(valid_types)}",
+            err=True,
+        )
+        raise typer.Exit(1)
+
     if is_server_mode():
         try:
-            valid_types = ["note", "reflection", "state_change"]
-            if log_type not in valid_types:
-                typer.echo(
-                    f"Invalid log type. Must be one of: {', '.join(valid_types)}",
-                    err=True,
-                )
-                raise typer.Exit(1)
-
             data = {
                 "decision_id": decision_id,
                 "type": log_type,
@@ -65,14 +83,6 @@ def add_log(
             typer.echo(f"Decision '{decision_id}' not found.", err=True)
             raise typer.Exit(1)
 
-        # Validate log type
-        valid_types = ["note", "reflection", "state_change"]
-        if log_type not in valid_types:
-            typer.echo(
-                f"Invalid log type. Must be one of: {', '.join(valid_types)}", err=True
-            )
-            raise typer.Exit(1)
-
         log = DecisionLog(
             decision_id=decision_id,
             type=log_type,
@@ -92,9 +102,26 @@ def add_log(
 @logs_app.command("list")
 def list_logs(
     decision_id: str = Argument(..., help="Decision ID"),
+    output_format: Optional[str] = Option(
+        None, "--format", "-f", help="Output format: json, quiet"
+    ),
     limit: int = Option(50, "--limit", "-l", help="Number of logs to show"),
+    fields: Optional[str] = Option(
+        None,
+        "--fields",
+        help="Comma-separated fields to include (e.g., 'id,type,content')",
+    ),
 ):
     """List all logs for a decision."""
+    json_output = output_format == "json"
+    quiet = output_format == "quiet"
+    output_mode = get_output_mode(json_output, quiet)
+
+    # Parse fields if provided
+    field_list = None
+    if fields:
+        field_list = [f.strip() for f in fields.split(",") if f.strip()]
+
     if is_server_mode():
         try:
             logs_result = api_request(
@@ -108,9 +135,38 @@ def list_logs(
             decision = unwrap_response(decision_result, {})
 
             if not logs:
-                typer.echo(f"No logs found for decision '{decision_id}'.")
+                if output_mode == OutputMode.JSON:
+                    echo_json([])
+                else:
+                    typer.echo(f"No logs found for decision '{decision_id}'.")
                 return
 
+            if output_mode == OutputMode.JSON:
+                # Build list of dicts with all fields
+                result_data = [
+                    {
+                        "id": log.get("id"),
+                        "type": log.get("type"),
+                        "content": log.get("content"),
+                        "source": log.get("source"),
+                        "created_at": log.get("created_at"),
+                    }
+                    for log in logs
+                ]
+                # Filter fields if --fields was specified
+                if field_list:
+                    result_data = [
+                        _filter_fields(log, field_list) for log in result_data
+                    ]
+                echo_json(result_data)
+                return
+            elif output_mode == OutputMode.QUIET:
+                # Just IDs, one per line
+                for log in logs:
+                    typer.echo(log.get("id"))
+                return
+
+            # PRETTY mode - existing human output
             typer.echo(f"=== Logs for Decision ===\n")
             typer.echo(f"Decision: {decision_result.get('title', 'N/A')}\n")
 
@@ -144,9 +200,36 @@ def list_logs(
         )
 
         if not logs:
-            typer.echo(f"No logs found for decision '{decision_id}'.")
+            if output_mode == OutputMode.JSON:
+                echo_json([])
+            else:
+                typer.echo(f"No logs found for decision '{decision_id}'.")
             return
 
+        if output_mode == OutputMode.JSON:
+            # Build list of dicts with all fields
+            result_data = [
+                {
+                    "id": str(log.id),
+                    "type": log.type,
+                    "content": log.content,
+                    "source": log.source,
+                    "created_at": log.created_at,
+                }
+                for log in logs
+            ]
+            # Filter fields if --fields was specified
+            if field_list:
+                result_data = [_filter_fields(log, field_list) for log in result_data]
+            echo_json(result_data)
+            return
+        elif output_mode == OutputMode.QUIET:
+            # Just IDs, one per line
+            for log in logs:
+                typer.echo(str(log.id))
+            return
+
+        # PRETTY mode - existing human output
         typer.echo(f"=== Logs for Decision ===\n")
         typer.echo(f"Decision: {decision.title}\n")
 
@@ -170,6 +253,9 @@ def delete_log(
     force: bool = Option(False, "--force", "-f", help="Skip confirmation"),
 ):
     """Delete a log entry."""
+    # Validate input
+    validate_resource_id(log_id)
+
     if is_server_mode():
         try:
             if not force:
@@ -206,8 +292,18 @@ def delete_log(
         db.close()
 
 
-def journey_command(decision_id: str):
+def journey_command(
+    decision_id: str,
+    json_output: bool = False,
+    quiet: bool = False,
+):
     """Show full decision journey timeline."""
+    # Validate input
+    validate_resource_id(decision_id)
+
+    # Get output mode
+    output_mode = get_output_mode(json_output, quiet)
+
     if is_server_mode():
         try:
             result = api_request("GET", f"/api/decisions/{decision_id}")
@@ -218,6 +314,36 @@ def journey_command(decision_id: str):
             logs_data = unwrap_response(logs_result, {})
             logs = logs_data.get("logs", []) if isinstance(logs_data, dict) else []
 
+            if output_mode == OutputMode.JSON:
+                # Build full journey data
+                journey_data = {
+                    "decision": {
+                        "id": decision.get("id"),
+                        "title": decision.get("title"),
+                        "date": decision.get("date"),
+                        "status": decision.get("status"),
+                        "direction_title": decision.get("direction_title"),
+                        "review_at": decision.get("review_at"),
+                        "created_at": decision.get("created_at"),
+                    },
+                    "logs": [
+                        {
+                            "id": log.get("id"),
+                            "type": log.get("type"),
+                            "content": log.get("content"),
+                            "source": log.get("source"),
+                            "created_at": log.get("created_at"),
+                        }
+                        for log in logs
+                    ],
+                }
+                echo_json(journey_data)
+                return
+            elif output_mode == OutputMode.QUIET:
+                typer.echo(decision.get("id"))
+                return
+
+            # PRETTY mode - existing human output
             # Display journey header
             typer.echo(f"=== Decision Journey ===\n")
             typer.echo(f"Title: {decision.get('title', 'N/A')}")
@@ -266,6 +392,40 @@ def journey_command(decision_id: str):
             .all()
         )
 
+        if output_mode == OutputMode.JSON:
+            # Build full journey data
+            journey_data = {
+                "decision": {
+                    "id": str(decision.id),
+                    "title": decision.title,
+                    "date": str(decision.date),
+                    "status": decision.status,
+                    "direction_title": decision.direction.title
+                    if decision.direction
+                    else None,
+                    "review_at": str(decision.review_at)
+                    if decision.review_at
+                    else None,
+                    "created_at": decision.created_at,
+                },
+                "logs": [
+                    {
+                        "id": str(log.id),
+                        "type": log.type,
+                        "content": log.content,
+                        "source": log.source,
+                        "created_at": log.created_at,
+                    }
+                    for log in logs
+                ],
+            }
+            echo_json(journey_data)
+            return
+        elif output_mode == OutputMode.QUIET:
+            typer.echo(str(decision.id))
+            return
+
+        # PRETTY mode - existing human output
         # Display journey header
         typer.echo(f"=== Decision Journey ===\n")
         typer.echo(f"Title: {decision.title}")
@@ -297,3 +457,16 @@ def journey_command(decision_id: str):
 
     finally:
         db.close()
+
+
+@journey_app.command("show")
+def journey(
+    decision_id: str = Argument(..., help="Decision ID"),
+    output_format: Optional[str] = Option(
+        None, "--format", "-f", help="Output format: json, quiet"
+    ),
+):
+    """Show full decision journey timeline."""
+    json_output = output_format == "json"
+    quiet = output_format == "quiet"
+    journey_command(decision_id, json_output, quiet)

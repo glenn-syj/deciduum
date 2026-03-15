@@ -284,7 +284,7 @@ deciduum today
 deciduum logs list
 
 # Add a log entry
-deciduum logs add --decision-id <DECISION_ID> --type note --content "Test log"
+deciduum logs add --json '{"decision_id": "<DECISION_ID>", "type": "note", "content": "Test log"}'
 ```
 
 ---

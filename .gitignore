@@ -196,3 +196,6 @@ sketch
 *.db
 
 # End of https://www.toptal.com/developers/gitignore/api/python,react
+
+# Work plans
+docs/work_plans/

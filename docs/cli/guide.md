@@ -330,16 +330,19 @@ Decision logs are append-only entries that capture the evolution of a decision o
 ### Add Log
 
 ```bash
-deciduum logs add <decision-id> --type note --content "Started researching options"
-deciduum logs add <decision-id> --type reflection --content "Realized this aligns with my long-term goals"
-deciduum logs add <decision-id> --type state_change --content "Completed the research phase"
+deciduum logs add --json '{"decision_id": "...", "type": "note", "content": "Started researching options"}'
+deciduum logs add --json '{"decision_id": "...", "type": "reflection", "content": "Realized this aligns with my long-term goals"}'
+deciduum logs add --json '{"decision_id": "...", "type": "state_change", "content": "Completed the research phase"}'
 ```
 
 Options:
-- `decision-id` - Decision ID (required, positional)
-- `-t, --type TEXT` - Log type (note/reflection/state_change, default: note)
-- `-c, --content TEXT` - Log content (required)
-- `-s, --source TEXT` - Source (human/system, default: human)
+- `-j, --json TEXT` - JSON payload with log fields (required)
+
+JSON payload accepts:
+- `decision_id` - Decision ID (required)
+- `type` - Log type (note/reflection/state_change, required)
+- `content` - Log content (required)
+- `source` - Source (human/system, optional, default: human)
 
 ### List Logs
 

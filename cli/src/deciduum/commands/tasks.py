@@ -5,10 +5,14 @@ from typing import Optional
 
 import typer
 from typer import Option, Argument
+import json
 
 from deciduum.database import get_db, is_server_mode
 from deciduum.server_client import api_request, ServerClientError, unwrap_response
 from deciduum.models import Task
+from deciduum.output import get_output_mode, OutputMode, echo_json
+from deciduum.validation import validate_safe_input, validate_resource_id
+from deciduum.schemas import TaskCreate, TaskUpdate
 
 tasks_app = typer.Typer(help="Tasks CRUD commands.")
 
@@ -19,15 +23,40 @@ def _handle_server_mode(e: ServerClientError) -> None:
     raise typer.Exit(1)
 
 
+def _filter_fields(data: dict, fields: list) -> dict:
+    """Filter dictionary to only include specified fields."""
+    return {k: v for k, v in data.items() if k in fields}
+
+
 @tasks_app.command("list")
 def list_tasks(
+    output_format: Optional[str] = Option(
+        None, "--format", "-f", help="Output format: json, quiet"
+    ),
     status: Optional[str] = Option(None, "--status", "-s", help="Filter by status"),
     decision_id: Optional[str] = Option(
         None, "--decision", "-d", help="Filter by decision ID"
     ),
     limit: int = Option(20, "--limit", "-l", help="Number of tasks to show"),
+    one_line: bool = Option(
+        False, "--one-line", "-o", help="Show compact one-line output"
+    ),
+    fields: Optional[str] = Option(
+        None,
+        "--fields",
+        help="Comma-separated fields to include (e.g., 'id,title,status')",
+    ),
 ):
     """List all tasks."""
+    json_output = output_format == "json"
+    quiet = output_format == "quiet"
+    output_mode = get_output_mode(json_output, quiet)
+
+    # Parse fields if provided
+    field_list = None
+    if fields:
+        field_list = [f.strip() for f in fields.split(",") if f.strip()]
+
     if is_server_mode():
         try:
             params = {"limit": limit}
@@ -48,23 +77,79 @@ def list_tasks(
                 tasks = []
 
             if not tasks:
-                typer.echo("No tasks found.")
+                if output_mode == OutputMode.JSON:
+                    echo_json([])
+                else:
+                    typer.echo("No tasks found.")
                 return
 
-            typer.echo("=== Tasks ===\n")
-            for t in tasks:
-                status_icon = {
-                    "pending": "○",
-                    "in_progress": "◐",
-                    "completed": "✓",
-                }.get(t.get("status", "pending"), "○")
-                due = f"[due: {t.get('due_date', '')}]" if t.get("due_date") else ""
-                decision_ref = (
-                    f"[{t.get('decision_title', '')[:30]}...]"
-                    if t.get("decision_title")
-                    else ""
-                )
-                typer.echo(f"{status_icon} {t.get('title', '')} {due} {decision_ref}")
+            if output_mode == OutputMode.JSON:
+                # Build list of dicts with all fields
+                result_data = [
+                    {
+                        "id": t.get("id"),
+                        "title": t.get("title"),
+                        "status": t.get("status"),
+                        "due_date": t.get("due_date"),
+                        "decision_id": t.get("decision_id"),
+                        "decision_title": t.get("decision_title"),
+                        "notes": t.get("notes"),
+                        "created_at": t.get("created_at"),
+                    }
+                    for t in tasks
+                ]
+                # Filter fields if --fields was specified
+                if field_list:
+                    result_data = [_filter_fields(t, field_list) for t in result_data]
+                echo_json(result_data)
+                return
+            elif output_mode == OutputMode.QUIET:
+                # Just IDs, one per line
+                for t in tasks:
+                    typer.echo(t.get("id"))
+                return
+
+            # PRETTY mode - existing human output
+            if one_line:
+                typer.echo("=== Tasks ===\n")
+                for t in tasks:
+                    status_icon = {
+                        "pending": "○",
+                        "in_progress": "◐",
+                        "completed": "✓",
+                    }.get(t.get("status", "pending"), "○")
+                    due = f"[due: {t.get('due_date', '')}]" if t.get("due_date") else ""
+                    decision_ref = (
+                        f"[→{t.get('decision_title', '')[:30]}]"
+                        if t.get("decision_title")
+                        else ""
+                    )
+                    typer.echo(
+                        f"{status_icon} [{t.get('id', '')[:6]}] {t.get('title', '')} {due} {decision_ref}"
+                    )
+            else:
+                typer.echo("=== Tasks ===\n")
+                for t in tasks:
+                    typer.echo(f"ID: {t.get('id', '')}")
+                    typer.echo(f"Title: {t.get('title', '')}")
+                    status_icon = {
+                        "pending": "○",
+                        "in_progress": "◐",
+                        "completed": "✓",
+                    }.get(t.get("status", "pending"), "○")
+                    typer.echo(f"Status: {status_icon} {t.get('status', 'pending')}")
+                    due = t.get("due_date", "Not set")
+                    typer.echo(f"Due: {due}")
+                    if t.get("decision_title"):
+                        decision_id_val = t.get("decision_id", "")
+                        typer.echo(
+                            f"Decision: {t.get('decision_title')} ({decision_id_val})"
+                        )
+                    else:
+                        typer.echo("Decision: None")
+                    if t.get("notes"):
+                        typer.echo(f"Notes: {t.get('notes')}")
+                    typer.echo("---")
         except ServerClientError as e:
             _handle_server_mode(e)
         return
@@ -85,17 +170,70 @@ def list_tasks(
         )
 
         if not tasks:
-            typer.echo("No tasks found.")
+            if output_mode == OutputMode.JSON:
+                echo_json([])
+            else:
+                typer.echo("No tasks found.")
             return
 
-        typer.echo("=== Tasks ===\n")
-        for t in tasks:
-            status_icon = {"pending": "○", "in_progress": "◐", "completed": "✓"}.get(
-                t.status, "○"
-            )
-            due = f"[due: {t.due_date}]" if t.due_date else ""
-            decision_ref = f"[{t.decision.title[:30]}...]" if t.decision else ""
-            typer.echo(f"{status_icon} {t.title} {due} {decision_ref}")
+        if output_mode == OutputMode.JSON:
+            # Build list of dicts with all fields
+            result_data = [
+                {
+                    "id": str(t.id),
+                    "title": t.title,
+                    "status": t.status,
+                    "due_date": t.due_date,
+                    "decision_id": t.decision_id,
+                    "decision_title": t.decision.title if t.decision else None,
+                    "notes": t.notes,
+                    "created_at": t.created_at,
+                }
+                for t in tasks
+            ]
+            # Filter fields if --fields was specified
+            if field_list:
+                result_data = [_filter_fields(t, field_list) for t in result_data]
+            echo_json(result_data)
+            return
+        elif output_mode == OutputMode.QUIET:
+            # Just IDs, one per line
+            for t in tasks:
+                typer.echo(str(t.id))
+            return
+
+        # PRETTY mode - existing human output
+        if one_line:
+            typer.echo("=== Tasks ===\n")
+            for t in tasks:
+                status_icon = {
+                    "pending": "○",
+                    "in_progress": "◐",
+                    "completed": "✓",
+                }.get(t.status, "○")
+                due = f"[due: {t.due_date}]" if t.due_date else ""
+                decision_ref = f"[→{t.decision.title[:30]}]" if t.decision else ""
+                typer.echo(f"{status_icon} [{t.id[:6]}] {t.title} {due} {decision_ref}")
+        else:
+            typer.echo("=== Tasks ===\n")
+            for t in tasks:
+                typer.echo(f"ID: {t.id}")
+                typer.echo(f"Title: {t.title}")
+                status_icon = {
+                    "pending": "○",
+                    "in_progress": "◐",
+                    "completed": "✓",
+                }.get(t.status, "○")
+                typer.echo(f"Status: {status_icon} {t.status}")
+                due = t.due_date or "Not set"
+                typer.echo(f"Due: {due}")
+                if t.decision:
+                    typer.echo(f"Decision: {t.decision.title} ({t.decision_id})")
+                else:
+                    typer.echo("Decision: None")
+                if t.notes:
+                    typer.echo(f"Notes: {t.notes}")
+                typer.echo("---")
 
     finally:
         db.close()
@@ -103,15 +241,29 @@ def list_tasks(
 
 @tasks_app.command("add")
 def add_task(
-    title: str = Option(..., "--title", "-t", help="Task title"),
-    decision_id: str = Option(..., "--decision", "-d", help="Decision ID to link to"),
-    due_date: Optional[str] = Option(None, "--due", help="Due date (YYYY-MM-DD)"),
-    notes: Optional[str] = Option(None, "--notes", "-n", help="Task notes"),
-    status: str = Option(
-        "pending", "--status", "-s", help="Status (pending/in_progress/completed)"
-    ),
+    json_input: str = Option(..., "--json", "-j", help="JSON payload with task fields"),
 ):
     """Add a new task."""
+    # Parse JSON input using Pydantic model validation
+    try:
+        payload = TaskCreate.model_validate_json(json_input)
+    except Exception as e:
+        typer.echo(f"Invalid JSON: {e}", err=True)
+        raise typer.Exit(1)
+
+    # Access fields via payload.title, payload.decision_id, etc.
+    title = payload.title
+    decision_id = payload.decision_id
+    due_date = payload.due_date
+    notes = payload.notes
+    status = payload.status
+
+    # Validate inputs
+    validate_safe_input(title, "title")
+    validate_safe_input(decision_id, "decision_id")
+    if notes:
+        validate_safe_input(notes, "notes")
+
     if is_server_mode():
         try:
             data = {
@@ -161,12 +313,41 @@ def add_task(
 @tasks_app.command("show")
 def show_task(
     task_id: str = Argument(..., help="Task ID"),
+    output_format: Optional[str] = Option(
+        None, "--format", "-f", help="Output format: json, quiet"
+    ),
 ):
     """Show a task's details."""
+    json_output = output_format == "json"
+    quiet = output_format == "quiet"
+    # Validate input
+    validate_resource_id(task_id)
+
+    # Get output mode
+    output_mode = get_output_mode(json_output, quiet)
+
     if is_server_mode():
         try:
             result = api_request("GET", f"/api/tasks/{task_id}")
             t = unwrap_response(result, {})
+
+            if output_mode == OutputMode.JSON:
+                # Build full task data
+                task_data = {
+                    "id": t.get("id"),
+                    "title": t.get("title"),
+                    "status": t.get("status"),
+                    "due_date": t.get("due_date"),
+                    "decision_id": t.get("decision_id"),
+                    "decision_title": t.get("decision_title"),
+                    "notes": t.get("notes"),
+                    "created_at": t.get("created_at"),
+                }
+                echo_json(task_data)
+                return
+            elif output_mode == OutputMode.QUIET:
+                typer.echo(t.get("id"))
+                return
 
             typer.echo(f"ID: {t.get('id')}")
             typer.echo(f"Title: {t.get('title')}")
@@ -188,6 +369,24 @@ def show_task(
             typer.echo(f"Task '{task_id}' not found.", err=True)
             raise typer.Exit(1)
 
+        if output_mode == OutputMode.JSON:
+            # Build full task data
+            task_data = {
+                "id": str(task.id),
+                "title": task.title,
+                "status": task.status,
+                "due_date": task.due_date,
+                "decision_id": task.decision_id,
+                "decision_title": task.decision.title if task.decision else None,
+                "notes": task.notes,
+                "created_at": task.created_at,
+            }
+            echo_json(task_data)
+            return
+        elif output_mode == OutputMode.QUIET:
+            typer.echo(str(task.id))
+            return
+
         typer.echo(f"ID: {task.id}")
         typer.echo(f"Title: {task.title}")
         typer.echo(f"Status: {task.status}")
@@ -206,6 +405,9 @@ def complete_task(
     task_id: str = Argument(..., help="Task ID"),
 ):
     """Mark a task as completed."""
+    # Validate input
+    validate_resource_id(task_id)
+
     if is_server_mode():
         try:
             api_request("PATCH", f"/api/tasks/{task_id}", data={"status": "completed"})
@@ -238,6 +440,9 @@ def delete_task(
     force: bool = Option(False, "--force", "-f", help="Skip confirmation"),
 ):
     """Soft delete a task."""
+    # Validate input
+    validate_resource_id(task_id)
+
     if is_server_mode():
         try:
             if not force:
@@ -277,17 +482,33 @@ def delete_task(
 @tasks_app.command("update")
 def update_task(
     task_id: str = Argument(..., help="Task ID"),
-    title: Optional[str] = Option(None, "--title", "-t", help="Task title"),
-    status: Optional[str] = Option(
-        None,
-        "--status",
-        "-s",
-        help="Status (pending/in_progress/completed)",
+    json_input: str = Option(
+        ..., "--json", "-j", help="JSON payload with fields to update"
     ),
-    due_date: Optional[str] = Option(None, "--due", help="Due date (YYYY-MM-DD)"),
-    notes: Optional[str] = Option(None, "--notes", "-n", help="Task notes"),
 ):
     """Update a task."""
+    # Validate inputs
+    validate_resource_id(task_id)
+
+    # Parse JSON input using Pydantic model validation
+    try:
+        payload = TaskUpdate.model_validate_json(json_input)
+    except Exception as e:
+        typer.echo(f"Invalid JSON: {e}", err=True)
+        raise typer.Exit(1)
+
+    # Extract fields from validated payload (all optional for update)
+    title = payload.title
+    status = payload.status
+    due_date = payload.due_date
+    notes = payload.notes
+
+    # Validate inputs if provided
+    if title:
+        validate_safe_input(title, "title")
+    if notes:
+        validate_safe_input(notes, "notes")
+
     if is_server_mode():
         try:
             data = {}
@@ -313,6 +534,7 @@ def update_task(
             typer.echo(f"Task '{task_id}' not found.", err=True)
             raise typer.Exit(1)
 
+        # Apply updates from JSON
         if title is not None:
             task.title = title
         if status is not None:

@@ -9,6 +9,7 @@ import typer
 from deciduum.config import get_session_id, get_sessions_dir, get_session_db_path
 from deciduum.database import get_db_manager, get_db
 from deciduum.models import SessionInfo
+from deciduum.schemas import SessionCreate
 
 session_app = typer.Typer(help="Session management commands.")
 
@@ -70,7 +71,9 @@ def session_info(
 @session_app.command("create")
 def create_session(
     session_id: str = typer.Argument(..., help="Session ID to create"),
-    name: str = typer.Option(None, "--name", "-n", help="Session display name"),
+    json_input: str = typer.Option(
+        ..., "--json", "-j", help="JSON payload with session fields"
+    ),
 ):
     """Create a new session."""
     db_path = get_session_db_path(session_id)
@@ -79,8 +82,18 @@ def create_session(
         typer.echo(f"Session '{session_id}' already exists.", err=True)
         raise typer.Exit(1)
 
+    try:
+        payload = SessionCreate.model_validate_json(json_input)
+    except Exception as e:
+        typer.echo(f"Invalid JSON: {e}", err=True)
+        raise typer.Exit(1)
+
+    # Access fields via payload.name
+    # Use payload.name if provided, otherwise default to session_id argument
+    name = payload.name if payload.name else session_id
+
     db_manager = get_db_manager(session_id)
-    db_manager.init_database(name=name or session_id)
+    db_manager.init_database(name=name)
 
     typer.echo(f"Created session '{session_id}' at {db_path}")
 
@@ -91,15 +104,15 @@ def delete_session(
     force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation"),
 ):
     """Delete a session and its database."""
+    current_session = get_session_id()
+    if session_id == current_session:
+        typer.echo("Cannot delete the current session.", err=True)
+        raise typer.Exit(1)
+
     db_path = get_session_db_path(session_id)
 
     if not db_path.exists():
         typer.echo(f"Session '{session_id}' does not exist.", err=True)
-        raise typer.Exit(1)
-
-    current_session = get_session_id()
-    if session_id == current_session:
-        typer.echo("Cannot delete the current session.", err=True)
         raise typer.Exit(1)
 
     if not force:
