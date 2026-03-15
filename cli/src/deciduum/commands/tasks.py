@@ -12,6 +12,7 @@ from deciduum.server_client import api_request, ServerClientError, unwrap_respon
 from deciduum.models import Task
 from deciduum.output import get_output_mode, OutputMode, echo_json
 from deciduum.validation import validate_safe_input, validate_resource_id
+from deciduum.schemas import TaskCreate, TaskUpdate
 
 tasks_app = typer.Typer(help="Tasks CRUD commands.")
 
@@ -243,27 +244,19 @@ def add_task(
     json_input: str = Option(..., "--json", "-j", help="JSON payload with task fields"),
 ):
     """Add a new task."""
-    # Parse JSON input
+    # Parse JSON input using Pydantic model validation
     try:
-        json_data = json.loads(json_input)
-    except json.JSONDecodeError as e:
+        payload = TaskCreate.model_validate_json(json_input)
+    except Exception as e:
         typer.echo(f"Invalid JSON: {e}", err=True)
         raise typer.Exit(1)
 
-    # Extract fields from JSON
-    title = json_data.get("title")
-    decision_id = json_data.get("decision_id")
-    due_date = json_data.get("due_date")
-    notes = json_data.get("notes")
-    status = json_data.get("status", "pending")
-
-    # Validate required fields
-    if not title:
-        typer.echo("Error: 'title' is required in JSON payload.", err=True)
-        raise typer.Exit(1)
-    if not decision_id:
-        typer.echo("Error: 'decision_id' is required in JSON payload.", err=True)
-        raise typer.Exit(1)
+    # Access fields via payload.title, payload.decision_id, etc.
+    title = payload.title
+    decision_id = payload.decision_id
+    due_date = payload.due_date
+    notes = payload.notes
+    status = payload.status
 
     # Validate inputs
     validate_safe_input(title, "title")
@@ -497,18 +490,18 @@ def update_task(
     # Validate inputs
     validate_resource_id(task_id)
 
-    # Parse JSON input
+    # Parse JSON input using Pydantic model validation
     try:
-        json_data = json.loads(json_input)
-    except json.JSONDecodeError as e:
+        payload = TaskUpdate.model_validate_json(json_input)
+    except Exception as e:
         typer.echo(f"Invalid JSON: {e}", err=True)
         raise typer.Exit(1)
 
-    # Extract fields from JSON (all optional for update)
-    title = json_data.get("title")
-    status = json_data.get("status")
-    due_date = json_data.get("due_date")
-    notes = json_data.get("notes")
+    # Extract fields from validated payload (all optional for update)
+    title = payload.title
+    status = payload.status
+    due_date = payload.due_date
+    notes = payload.notes
 
     # Validate inputs if provided
     if title:

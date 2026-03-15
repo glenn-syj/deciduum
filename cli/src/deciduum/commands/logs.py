@@ -7,6 +7,7 @@ from typing import Optional
 import typer
 from typer import Option, Argument
 
+from deciduum.schemas import LogCreate
 from deciduum.database import get_db, is_server_mode
 from deciduum.server_client import api_request, ServerClientError, unwrap_response
 from deciduum.models import Decision, DecisionLog
@@ -33,29 +34,18 @@ def add_log(
     json_input: str = Option(..., "--json", "-j", help="JSON payload with log fields"),
 ):
     """Add a log entry to a decision."""
-    # Parse JSON input
+    # Validate JSON input using Pydantic
     try:
-        json_data = json.loads(json_input)
-    except json.JSONDecodeError as e:
+        payload = LogCreate.model_validate_json(json_input)
+    except Exception as e:
         typer.echo(f"Invalid JSON: {e}", err=True)
         raise typer.Exit(1)
 
-    # Extract fields from JSON
-    decision_id = json_data.get("decision_id")
-    log_type = json_data.get("type")
-    content = json_data.get("content")
-    source = json_data.get("source", "human")
-
-    # Validate required fields
-    if not decision_id:
-        typer.echo("Error: 'decision_id' is required in JSON payload.", err=True)
-        raise typer.Exit(1)
-    if not log_type:
-        typer.echo("Error: 'type' is required in JSON payload.", err=True)
-        raise typer.Exit(1)
-    if not content:
-        typer.echo("Error: 'content' is required in JSON payload.", err=True)
-        raise typer.Exit(1)
+    # Access fields via payload.decision_id, payload.type, payload.content, payload.source
+    decision_id = payload.decision_id
+    log_type = payload.type
+    content = payload.content
+    source = payload.source
 
     # Validate inputs
     validate_resource_id(decision_id)

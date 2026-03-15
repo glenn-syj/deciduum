@@ -5,13 +5,13 @@ from typing import Optional
 
 import typer
 from typer import Option, Argument
-import json
 
 from deciduum.database import get_db, is_server_mode
 from deciduum.server_client import api_request, ServerClientError, unwrap_response
 from deciduum.models import Memo, Decision
 from deciduum.output import get_output_mode, OutputMode, echo_json
 from deciduum.validation import validate_safe_input, validate_resource_id
+from deciduum.schemas import MemoCreate, MemoUpdate
 
 memos_app = typer.Typer(help="Memos CRUD commands.")
 
@@ -221,41 +221,30 @@ def add_memo(
     json_input: str = Option(..., "--json", "-j", help="JSON payload with memo fields"),
 ):
     """Add a new memo."""
-    # Parse JSON input
+    # Parse JSON input using Pydantic model
     try:
-        json_data = json.loads(json_input)
-    except json.JSONDecodeError as e:
+        payload = MemoCreate.model_validate_json(json_input)
+    except Exception as e:
         typer.echo(f"Invalid JSON: {e}", err=True)
         raise typer.Exit(1)
 
-    # Extract fields from JSON
-    content = json_data.get("content")
-    date = json_data.get("date")
-    linked_decision_id = json_data.get("linked_decision_id")
-    linked_direction_id = json_data.get("linked_direction_id")
-
-    # Validate required fields
-    if not content:
-        typer.echo("Field 'content' is required in JSON payload.", err=True)
-        raise typer.Exit(1)
-
     # Validate inputs
-    validate_safe_input(content, "content")
-    if linked_decision_id:
-        validate_safe_input(linked_decision_id, "linked_decision_id")
-    if linked_direction_id:
-        validate_safe_input(linked_direction_id, "linked_direction_id")
+    validate_safe_input(payload.content, "content")
+    if payload.linked_decision_id:
+        validate_safe_input(payload.linked_decision_id, "linked_decision_id")
+    if payload.linked_direction_id:
+        validate_safe_input(payload.linked_direction_id, "linked_direction_id")
 
     if is_server_mode():
         try:
             data = {
-                "content": content,
-                "date": date or datetime.now().strftime("%Y-%m-%d"),
+                "content": payload.content,
+                "date": payload.date or datetime.now().strftime("%Y-%m-%d"),
             }
-            if linked_decision_id:
-                data["linked_decision_id"] = linked_decision_id
-            if linked_direction_id:
-                data["linked_direction_id"] = linked_direction_id
+            if payload.linked_decision_id:
+                data["linked_decision_id"] = payload.linked_decision_id
+            if payload.linked_direction_id:
+                data["linked_direction_id"] = payload.linked_direction_id
             result = api_request("POST", "/api/memos", data=data)
             data = unwrap_response(result, {})
             typer.echo(f"Created memo: {data.get('id')}")
@@ -267,10 +256,10 @@ def add_memo(
     db = get_db()
     try:
         memo = Memo(
-            content=content,
-            date=date or datetime.now().strftime("%Y-%m-%d"),
-            linked_decision_id=linked_decision_id,
-            linked_direction_id=linked_direction_id,
+            content=payload.content,
+            date=payload.date or datetime.now().strftime("%Y-%m-%d"),
+            linked_decision_id=payload.linked_decision_id,
+            linked_direction_id=payload.linked_direction_id,
         )
         db.add(memo)
         db.commit()
@@ -428,35 +417,30 @@ def update_memo(
     # Validate memo_id
     validate_resource_id(memo_id)
 
-    # Parse JSON input
+    # Parse JSON input using Pydantic model
     try:
-        json_data = json.loads(json_input)
-    except json.JSONDecodeError as e:
+        payload = MemoUpdate.model_validate_json(json_input)
+    except Exception as e:
         typer.echo(f"Invalid JSON: {e}", err=True)
         raise typer.Exit(1)
 
-    # Extract fields from JSON (all optional for update)
-    content = json_data.get("content")
-    linked_decision_id = json_data.get("linked_decision_id")
-    linked_direction_id = json_data.get("linked_direction_id")
-
     # Validate inputs if provided
-    if content:
-        validate_safe_input(content, "content")
-    if linked_decision_id:
-        validate_safe_input(linked_decision_id, "linked_decision_id")
-    if linked_direction_id:
-        validate_safe_input(linked_direction_id, "linked_direction_id")
+    if payload.content:
+        validate_safe_input(payload.content, "content")
+    if payload.linked_decision_id:
+        validate_safe_input(payload.linked_decision_id, "linked_decision_id")
+    if payload.linked_direction_id:
+        validate_safe_input(payload.linked_direction_id, "linked_direction_id")
 
     if is_server_mode():
         try:
             data = {}
-            if content is not None:
-                data["content"] = content
-            if linked_decision_id is not None:
-                data["linked_decision_id"] = linked_decision_id
-            if linked_direction_id is not None:
-                data["linked_direction_id"] = linked_direction_id
+            if payload.content is not None:
+                data["content"] = payload.content
+            if payload.linked_decision_id is not None:
+                data["linked_decision_id"] = payload.linked_decision_id
+            if payload.linked_direction_id is not None:
+                data["linked_direction_id"] = payload.linked_direction_id
             api_request("PATCH", f"/api/memos/{memo_id}", data=data)
             typer.echo(f"Updated memo '{memo_id}'.")
         except ServerClientError as e:
@@ -471,35 +455,39 @@ def update_memo(
             typer.echo(f"Memo '{memo_id}' not found.", err=True)
             raise typer.Exit(1)
 
-        # Apply updates from JSON
-        if content is not None:
-            memo.content = content
-        if linked_decision_id is not None:
+        # Apply updates from payload
+        if payload.content is not None:
+            memo.content = payload.content
+        if payload.linked_decision_id is not None:
             # Verify decision exists
             decision = (
-                db.query(Decision).filter(Decision.id == linked_decision_id).first()
+                db.query(Decision)
+                .filter(Decision.id == payload.linked_decision_id)
+                .first()
             )
             if not decision:
                 typer.echo(
-                    f"Decision '{linked_decision_id}' not found.",
+                    f"Decision '{payload.linked_decision_id}' not found.",
                     err=True,
                 )
                 raise typer.Exit(1)
-            memo.linked_decision_id = linked_decision_id
-        if linked_direction_id is not None:
+            memo.linked_decision_id = payload.linked_decision_id
+        if payload.linked_direction_id is not None:
             # Verify direction exists
             from deciduum.models import Direction
 
             direction = (
-                db.query(Direction).filter(Direction.id == linked_direction_id).first()
+                db.query(Direction)
+                .filter(Direction.id == payload.linked_direction_id)
+                .first()
             )
             if not direction:
                 typer.echo(
-                    f"Direction '{linked_direction_id}' not found.",
+                    f"Direction '{payload.linked_direction_id}' not found.",
                     err=True,
                 )
                 raise typer.Exit(1)
-            memo.linked_direction_id = linked_direction_id
+            memo.linked_direction_id = payload.linked_direction_id
 
         memo.updated_at = datetime.utcnow().isoformat()
         db.commit()

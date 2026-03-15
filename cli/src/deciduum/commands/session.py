@@ -1,6 +1,5 @@
 """Session management commands."""
 
-import json
 import os
 import shutil
 from pathlib import Path
@@ -10,6 +9,7 @@ import typer
 from deciduum.config import get_session_id, get_sessions_dir, get_session_db_path
 from deciduum.database import get_db_manager, get_db
 from deciduum.models import SessionInfo
+from deciduum.schemas import SessionCreate
 
 session_app = typer.Typer(help="Session management commands.")
 
@@ -83,12 +83,14 @@ def create_session(
         raise typer.Exit(1)
 
     try:
-        data = json.loads(json_input)
-    except json.JSONDecodeError as e:
+        payload = SessionCreate.model_validate_json(json_input)
+    except Exception as e:
         typer.echo(f"Invalid JSON: {e}", err=True)
         raise typer.Exit(1)
 
-    name = data.get("name", session_id)
+    # Access fields via payload.name
+    # Use payload.name if provided, otherwise default to session_id argument
+    name = payload.name if payload.name else session_id
 
     db_manager = get_db_manager(session_id)
     db_manager.init_database(name=name)

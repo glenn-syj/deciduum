@@ -12,6 +12,7 @@ from deciduum.server_client import api_request, ServerClientError, unwrap_respon
 from deciduum.models import Decision, DecisionLog
 from deciduum.output import get_output_mode, OutputMode, echo_json, is_terminal
 from deciduum.validation import validate_safe_input, validate_resource_id
+from deciduum.schemas import DecisionCreate, DecisionUpdate
 
 decisions_app = typer.Typer(help="Decisions CRUD commands.")
 
@@ -249,24 +250,19 @@ def add_decision(
     ),
 ):
     """Add a new decision."""
-    # Parse JSON input
+    # Parse JSON input using Pydantic
     try:
-        json_data = json.loads(json_input)
-    except json.JSONDecodeError as e:
+        payload = DecisionCreate.model_validate_json(json_input)
+    except Exception as e:
         typer.echo(f"Invalid JSON: {e}", err=True)
         raise typer.Exit(1)
 
-    # Extract fields from JSON
-    title = json_data.get("title")
-    date = json_data.get("date")
-    status = json_data.get("status", "ongoing")
-    direction_id = json_data.get("direction_id")
-    review_at = json_data.get("review_at")
-
-    # Validate required fields
-    if not title:
-        typer.echo("Missing required field: title", err=True)
-        raise typer.Exit(1)
+    # Access fields via payload attributes
+    title = payload.title
+    date = payload.date
+    status = payload.status
+    direction_id = payload.direction_id
+    review_at = payload.review_at
 
     # Validate inputs
     validate_safe_input(title, "title")
@@ -746,18 +742,18 @@ def update_decision(
     # Validate inputs
     validate_resource_id(decision_id)
 
-    # Parse JSON input
+    # Parse JSON input using Pydantic
     try:
-        json_data = json.loads(json_input)
-    except json.JSONDecodeError as e:
+        payload = DecisionUpdate.model_validate_json(json_input)
+    except Exception as e:
         typer.echo(f"Invalid JSON: {e}", err=True)
         raise typer.Exit(1)
 
-    # Extract optional fields from JSON
-    title = json_data.get("title")
-    status = json_data.get("status")
-    direction_id = json_data.get("direction_id")
-    review_at = json_data.get("review_at")
+    # Extract optional fields from payload
+    title = payload.title
+    status = payload.status
+    direction_id = payload.direction_id
+    review_at = payload.review_at
 
     # Validate inputs if provided
     if title:

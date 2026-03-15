@@ -5,13 +5,13 @@ from typing import Optional
 
 import typer
 from typer import Option, Argument
-import json
 
 from deciduum.database import get_db, is_server_mode
 from deciduum.server_client import api_request, ServerClientError, unwrap_response
 from deciduum.models import Direction
 from deciduum.output import get_output_mode, OutputMode, echo_json
 from deciduum.validation import validate_safe_input, validate_resource_id
+from deciduum.schemas import DirectionCreate, DirectionUpdate
 
 directions_app = typer.Typer(help="Directions CRUD commands.")
 
@@ -184,24 +184,18 @@ def add_direction(
     ),
 ):
     """Add a new direction."""
-    # Parse JSON input
+    # Parse and validate JSON input using Pydantic
     try:
-        json_data = json.loads(json_input)
-    except json.JSONDecodeError as e:
+        payload = DirectionCreate.model_validate_json(json_input)
+    except Exception as e:
         typer.echo(f"Invalid JSON: {e}", err=True)
         raise typer.Exit(1)
 
-    # Extract and validate title
-    title = json_data.get("title")
-    if not title:
-        typer.echo("Error: 'title' is required in JSON payload", err=True)
-        raise typer.Exit(1)
-
-    validate_safe_input(title, "title")
+    validate_safe_input(payload.title, "title")
 
     if is_server_mode():
         try:
-            data = {"title": title}
+            data = {"title": payload.title}
             result = api_request("POST", "/api/directions", data=data)
             data = unwrap_response(result, {})
             typer.echo(f"Created direction: {data.get('id')}")
@@ -212,7 +206,7 @@ def add_direction(
 
     db = get_db()
     try:
-        direction = Direction(title=title)
+        direction = Direction(title=payload.title)
         db.add(direction)
         db.commit()
 
@@ -379,22 +373,22 @@ def update_direction(
     # Validate direction_id
     validate_resource_id(direction_id)
 
-    # Parse JSON input
+    # Parse and validate JSON input using Pydantic
     try:
-        json_data = json.loads(json_input)
-    except json.JSONDecodeError as e:
+        payload = DirectionUpdate.model_validate_json(json_input)
+    except Exception as e:
         typer.echo(f"Invalid JSON: {e}", err=True)
         raise typer.Exit(1)
 
     # Validate title if provided
-    if "title" in json_data and json_data["title"]:
-        validate_safe_input(json_data["title"], "title")
+    if payload.title:
+        validate_safe_input(payload.title, "title")
 
     if is_server_mode():
         try:
             data = {}
-            if "title" in json_data:
-                data["title"] = json_data["title"]
+            if payload.title is not None:
+                data["title"] = payload.title
             api_request("PATCH", f"/api/directions/{direction_id}", data=data)
             typer.echo(f"Updated direction '{direction_id}'.")
         except ServerClientError as e:
@@ -409,9 +403,9 @@ def update_direction(
             typer.echo(f"Direction '{direction_id}' not found.", err=True)
             raise typer.Exit(1)
 
-        # Apply optional fields from JSON
-        if "title" in json_data:
-            direction.title = json_data["title"]
+        # Apply optional fields from Pydantic model
+        if payload.title is not None:
+            direction.title = payload.title
 
         direction.updated_at = datetime.utcnow().isoformat()
         db.commit()
