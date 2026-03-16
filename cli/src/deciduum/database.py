@@ -120,6 +120,12 @@ _db_manager: Optional[DatabaseManager] = None
 def get_db_manager(session_id: str) -> DatabaseManager:
     """Get or create the database manager for a session."""
     global _db_manager
+    # Reuse existing instance if same session_id
+    if _db_manager is not None and _db_manager.session_id == session_id:
+        return _db_manager
+    # Close previous instance if different session_id to prevent connection leaks
+    if _db_manager is not None:
+        _db_manager.close()
     _db_manager = DatabaseManager(session_id)
     return _db_manager
 
