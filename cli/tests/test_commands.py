@@ -17,17 +17,18 @@ runner = CliRunner()
 class TestSessionCommands:
     """Tests for session management commands."""
 
-    def test_session_list_empty(self, runner, isolated_env):
-        """Test listing sessions when none exist."""
+    def test_session_list_with_current_session(self, runner):
+        """Test that session list shows the current (auto-created) session."""
         result = runner.invoke(
             app,
             ["session", "list"],
             env={"DECIDUUM_SESSION": "test-session"},
         )
         assert result.exit_code == 0
-        assert "No sessions found" in result.stdout
+        # CLI auto-creates a session on first run, so we should see it listed
+        assert "test-session" in result.stdout
 
-    def test_session_create(self, runner, isolated_env):
+    def test_session_create(self, runner):
         """Test creating a new session."""
         result = runner.invoke(
             app,
@@ -38,7 +39,7 @@ class TestSessionCommands:
         assert "Created session" in result.stdout
         assert "test-session" in result.stdout
 
-    def test_session_create_duplicate(self, runner, isolated_env):
+    def test_session_create_duplicate(self, runner):
         """Test creating a duplicate session fails."""
         # First create
         runner.invoke(
@@ -55,7 +56,7 @@ class TestSessionCommands:
         assert result.exit_code == 1
         assert "already exists" in result.stderr
 
-    def test_session_info(self, runner, isolated_env):
+    def test_session_info(self, runner):
         """Test showing session info."""
         # First create a session
         runner.invoke(
@@ -73,7 +74,7 @@ class TestSessionCommands:
         assert "Session ID:" in result.stdout
         assert "test-session" in result.stdout
 
-    def test_session_info_nonexistent(self, runner, isolated_env):
+    def test_session_info_nonexistent(self, runner):
         """Test showing info for non-existent session fails."""
         result = runner.invoke(
             app,
@@ -96,7 +97,7 @@ class TestSessionCommands:
         assert path.endswith(".db")
         assert str(isolated_env["temp_sessions"]) in path
 
-    def test_session_delete_confirmation_cancelled(self, runner, isolated_env):
+    def test_session_delete_confirmation_cancelled(self, runner):
         """Test deleting a session with cancelled confirmation."""
         # First create a session to delete (different from current)
         runner.invoke(
@@ -114,7 +115,7 @@ class TestSessionCommands:
         assert result.exit_code == 0
         assert "Cancelled" in result.stdout
 
-    def test_session_delete_with_force(self, runner, isolated_env):
+    def test_session_delete_with_force(self, runner):
         """Test deleting a session with --force flag."""
         # First create a session to delete (different from current)
         runner.invoke(
@@ -131,7 +132,7 @@ class TestSessionCommands:
         assert result.exit_code == 0
         assert "Deleted session" in result.stdout
 
-    def test_session_delete_current_session_fails(self, runner, isolated_env):
+    def test_session_delete_current_session_fails(self, runner):
         """Test deleting the current session fails."""
         # The current session is set via env={"DECIDUUM_SESSION": "test-session"}
         result = runner.invoke(
@@ -142,7 +143,7 @@ class TestSessionCommands:
         assert result.exit_code == 1
         assert "Cannot delete the current session" in result.stderr
 
-    def test_session_delete_nonexistent_fails(self, runner, isolated_env):
+    def test_session_delete_nonexistent_fails(self, runner):
         """Test deleting a non-existent session fails."""
         result = runner.invoke(
             app,
@@ -156,7 +157,7 @@ class TestSessionCommands:
 class TestDirectionCommands:
     """Tests for direction management commands."""
 
-    def test_directions_add(self, runner, isolated_env):
+    def test_directions_add(self, runner):
         """Test adding a new direction."""
         result = runner.invoke(
             app,
@@ -166,7 +167,7 @@ class TestDirectionCommands:
         assert result.exit_code == 0
         assert "Created direction:" in result.stdout
 
-    def test_directions_list_empty(self, runner, isolated_env):
+    def test_directions_list_empty(self, runner):
         """Test listing directions when none exist."""
         result = runner.invoke(
             app,
@@ -178,7 +179,7 @@ class TestDirectionCommands:
         # The output may include "Initializing new session" message from the test fixture
         assert result.stdout.strip().endswith("[]")
 
-    def test_directions_list_with_data(self, runner, isolated_env):
+    def test_directions_list_with_data(self, runner):
         """Test listing directions with data."""
         # Add a direction first
         runner.invoke(
@@ -195,7 +196,7 @@ class TestDirectionCommands:
         assert result.exit_code == 0
         assert "Career Growth" in result.stdout
 
-    def test_directions_show(self, runner, isolated_env):
+    def test_directions_show(self, runner):
         """Test showing direction details."""
         # Add a direction first
         add_result = runner.invoke(
@@ -219,7 +220,7 @@ class TestDirectionCommands:
         assert result.exit_code == 0
         assert "Career Growth" in result.stdout
 
-    def test_directions_show_invalid_id(self, runner, isolated_env):
+    def test_directions_show_invalid_id(self, runner):
         """Test showing direction with invalid ID fails."""
         result = runner.invoke(
             app,
@@ -229,7 +230,7 @@ class TestDirectionCommands:
         assert result.exit_code == 1
         assert "not found" in result.stderr
 
-    def test_directions_delete(self, runner, isolated_env):
+    def test_directions_delete(self, runner):
         """Test soft deleting a direction."""
         # Add a direction first
         add_result = runner.invoke(
@@ -253,7 +254,7 @@ class TestDirectionCommands:
         assert result.exit_code == 0
         assert "Deleted direction" in result.stdout
 
-    def test_directions_delete_invalid_id(self, runner, isolated_env):
+    def test_directions_delete_invalid_id(self, runner):
         """Test deleting direction with invalid ID fails."""
         result = runner.invoke(
             app,
@@ -263,7 +264,7 @@ class TestDirectionCommands:
         assert result.exit_code == 1
         assert "not found" in result.stderr
 
-    def test_directions_update_title(self, runner, isolated_env):
+    def test_directions_update_title(self, runner):
         """Test updating direction title."""
         # Add a direction first
         add_result = runner.invoke(
@@ -287,7 +288,7 @@ class TestDirectionCommands:
         assert result.exit_code == 0
         assert "Updated direction" in result.stdout
 
-    def test_directions_update_with_json(self, runner, isolated_env):
+    def test_directions_update_with_json(self, runner):
         """Test updating direction with JSON payload."""
         # Add a direction first
         add_result = runner.invoke(
@@ -311,7 +312,7 @@ class TestDirectionCommands:
         assert result.exit_code == 0
         assert "Updated direction" in result.stdout
 
-    def test_directions_update_invalid_id(self, runner, isolated_env):
+    def test_directions_update_invalid_id(self, runner):
         """Test updating direction with invalid ID fails."""
         result = runner.invoke(
             app,
@@ -325,7 +326,7 @@ class TestDirectionCommands:
 class TestDecisionCommands:
     """Tests for decision management commands."""
 
-    def test_decisions_add(self, runner, isolated_env):
+    def test_decisions_add(self, runner):
         """Test adding a new decision without direction."""
         result = runner.invoke(
             app,
@@ -335,7 +336,7 @@ class TestDecisionCommands:
         assert result.exit_code == 0
         assert "Created decision:" in result.stdout
 
-    def test_decisions_add_with_direction(self, runner, isolated_env):
+    def test_decisions_add_with_direction(self, runner):
         """Test adding a new decision with a direction."""
         # Add a direction first
         dir_result = runner.invoke(
@@ -363,7 +364,7 @@ class TestDecisionCommands:
         assert result.exit_code == 0
         assert "Created decision:" in result.stdout
 
-    def test_decisions_add_with_invalid_direction(self, runner, isolated_env):
+    def test_decisions_add_with_invalid_direction(self, runner):
         """Test adding decision with invalid direction fails."""
         result = runner.invoke(
             app,
@@ -378,7 +379,7 @@ class TestDecisionCommands:
         assert result.exit_code == 1
         assert "not found" in result.stderr
 
-    def test_decisions_list_empty(self, runner, isolated_env):
+    def test_decisions_list_empty(self, runner):
         """Test listing decisions when none exist."""
         result = runner.invoke(
             app,
@@ -390,7 +391,7 @@ class TestDecisionCommands:
         # The output may include "Initializing new session" message from the test fixture
         assert result.stdout.strip().endswith("[]")
 
-    def test_decisions_list_with_data(self, runner, isolated_env):
+    def test_decisions_list_with_data(self, runner):
         """Test listing decisions with data."""
         # Add a decision
         runner.invoke(
@@ -407,7 +408,7 @@ class TestDecisionCommands:
         assert result.exit_code == 0
         assert "Learn Python" in result.stdout
 
-    def test_decisions_list_with_status_filter(self, runner, isolated_env):
+    def test_decisions_list_with_status_filter(self, runner):
         """Test listing decisions with status filter."""
         # Add a completed decision
         runner.invoke(
@@ -441,7 +442,7 @@ class TestDecisionCommands:
         assert "Completed Decision" in result.stdout
         assert "Ongoing Decision" not in result.stdout
 
-    def test_decisions_show(self, runner, isolated_env):
+    def test_decisions_show(self, runner):
         """Test showing decision details."""
         # Add a decision
         add_result = runner.invoke(
@@ -465,7 +466,7 @@ class TestDecisionCommands:
         assert result.exit_code == 0
         assert "Learn Python" in result.stdout
 
-    def test_decisions_show_invalid_id(self, runner, isolated_env):
+    def test_decisions_show_invalid_id(self, runner):
         """Test showing decision with invalid ID fails."""
         result = runner.invoke(
             app,
@@ -475,7 +476,7 @@ class TestDecisionCommands:
         assert result.exit_code == 1
         assert "not found" in result.stderr
 
-    def test_decisions_update_title(self, runner, isolated_env):
+    def test_decisions_update_title(self, runner):
         """Test updating decision title."""
         # Add a decision
         add_result = runner.invoke(
@@ -499,7 +500,7 @@ class TestDecisionCommands:
         assert result.exit_code == 0
         assert "Updated decision" in result.stdout
 
-    def test_decisions_update_status(self, runner, isolated_env):
+    def test_decisions_update_status(self, runner):
         """Test updating decision status."""
         # Add a decision
         add_result = runner.invoke(
@@ -523,7 +524,7 @@ class TestDecisionCommands:
         assert result.exit_code == 0
         assert "Updated decision" in result.stdout
 
-    def test_decisions_update_invalid_id(self, runner, isolated_env):
+    def test_decisions_update_invalid_id(self, runner):
         """Test updating decision with invalid ID fails."""
         result = runner.invoke(
             app,
@@ -533,7 +534,7 @@ class TestDecisionCommands:
         assert result.exit_code == 1
         assert "not found" in result.stderr
 
-    def test_decisions_delete(self, runner, isolated_env):
+    def test_decisions_delete(self, runner):
         """Test soft deleting a decision."""
         # Add a decision
         add_result = runner.invoke(
@@ -557,7 +558,7 @@ class TestDecisionCommands:
         assert result.exit_code == 0
         assert "Deleted decision" in result.stdout
 
-    def test_decisions_delete_invalid_id(self, runner, isolated_env):
+    def test_decisions_delete_invalid_id(self, runner):
         """Test deleting decision with invalid ID fails."""
         result = runner.invoke(
             app,
@@ -567,7 +568,7 @@ class TestDecisionCommands:
         assert result.exit_code == 1
         assert "not found" in result.stderr
 
-    def test_decisions_next_with_overdue(self, runner, isolated_env):
+    def test_decisions_next_with_overdue(self, runner):
         """Test showing next decision when overdue exists."""
         # Add a decision
         add_result = runner.invoke(
@@ -611,7 +612,7 @@ class TestDecisionCommands:
         review_at = date.fromisoformat(output_data["review_at"])
         assert review_at < date.today()
 
-    def test_decisions_next_none_pending(self, runner, isolated_env):
+    def test_decisions_next_none_pending(self, runner):
         """Test showing next decision when none pending."""
         # Get next decision with no decisions created
         # (default output is JSON in non-TTY test environment)
@@ -625,7 +626,7 @@ class TestDecisionCommands:
         # The output may contain "Initializing new session" message, so check for 'null' in output
         assert "null" in result.stdout
 
-    def test_decisions_next_json_format(self, runner, isolated_env):
+    def test_decisions_next_json_format(self, runner):
         """Test JSON output format for decisions next."""
         # Add a decision
         add_result = runner.invoke(
@@ -667,7 +668,7 @@ class TestDecisionCommands:
         assert "id" in output_data
         assert output_data["title"] == "JSON Test Decision"
 
-    def test_decisions_next_quiet_format(self, runner, isolated_env):
+    def test_decisions_next_quiet_format(self, runner):
         """Test quiet output format for decisions next."""
         # Add a decision
         add_result = runner.invoke(
@@ -712,7 +713,7 @@ class TestDecisionCommands:
         assert "Title:" not in output
         assert "ID:" not in output
 
-    def test_decisions_pending_empty(self, runner, isolated_env):
+    def test_decisions_pending_empty(self, runner):
         """Test listing pending decisions when none exist."""
         result = runner.invoke(
             app,
@@ -723,7 +724,7 @@ class TestDecisionCommands:
         # When no pending decisions, output is empty JSON array (after initialization message)
         assert result.stdout.strip().endswith("[]")
 
-    def test_decisions_pending_list_all(self, runner, isolated_env):
+    def test_decisions_pending_list_all(self, runner):
         """Test listing all pending decisions with review dates."""
         from datetime import date, timedelta
 
@@ -764,7 +765,7 @@ class TestDecisionCommands:
         assert result.exit_code == 0
         assert "Future Review Decision" in result.stdout
 
-    def test_decisions_pending_overdue_only(self, runner, isolated_env):
+    def test_decisions_pending_overdue_only(self, runner):
         """Test filtering overdue decisions only."""
         from datetime import date, timedelta
 
@@ -829,7 +830,7 @@ class TestDecisionCommands:
         assert "Overdue Decision" in result.stdout
         assert "Future Decision" not in result.stdout
 
-    def test_decisions_pending_due_soon_only(self, runner, isolated_env):
+    def test_decisions_pending_due_soon_only(self, runner):
         """Test filtering decisions due within 7 days."""
         from datetime import date, timedelta
 
@@ -894,7 +895,7 @@ class TestDecisionCommands:
         assert "Due Soon Decision" in result.stdout
         assert "Future Decision" not in result.stdout
 
-    def test_decisions_pending_json_format(self, runner, isolated_env):
+    def test_decisions_pending_json_format(self, runner):
         """Test JSON output format for pending decisions."""
         from datetime import date, timedelta
 
@@ -941,7 +942,7 @@ class TestDecisionCommands:
         assert data[0]["title"] == "JSON Test Decision"
         assert "review_at" in data[0]
 
-    def test_decisions_pending_no_overdue(self, runner, isolated_env):
+    def test_decisions_pending_no_overdue(self, runner):
         """Test empty result when no overdue decisions."""
         from datetime import date, timedelta
 
@@ -984,7 +985,7 @@ class TestDecisionCommands:
 class TestTaskCommands:
     """Tests for task management commands."""
 
-    def test_tasks_add(self, runner, isolated_env):
+    def test_tasks_add(self, runner):
         """Test adding a new task."""
         # Add a decision first
         dec_result = runner.invoke(
@@ -1012,7 +1013,7 @@ class TestTaskCommands:
         assert result.exit_code == 0
         assert "Created task:" in result.stdout
 
-    def test_tasks_add_without_decision(self, runner, isolated_env):
+    def test_tasks_add_without_decision(self, runner):
         """Test adding task without decision fails."""
         result = runner.invoke(
             app,
@@ -1021,7 +1022,7 @@ class TestTaskCommands:
         )
         assert result.exit_code == 1  # Missing required decision_id
 
-    def test_tasks_add_with_invalid_decision(self, runner, isolated_env):
+    def test_tasks_add_with_invalid_decision(self, runner):
         """Test adding task with invalid decision fails."""
         result = runner.invoke(
             app,
@@ -1036,7 +1037,7 @@ class TestTaskCommands:
         assert result.exit_code == 1
         assert "not found" in result.stderr
 
-    def test_tasks_list_empty(self, runner, isolated_env):
+    def test_tasks_list_empty(self, runner):
         """Test listing tasks when none exist."""
         result = runner.invoke(
             app,
@@ -1048,7 +1049,7 @@ class TestTaskCommands:
         # The output may include "Initializing new session" message from the test fixture
         assert result.stdout.strip().endswith("[]")
 
-    def test_tasks_list_with_data(self, runner, isolated_env):
+    def test_tasks_list_with_data(self, runner):
         """Test listing tasks with data."""
         # Add a decision and task
         dec_result = runner.invoke(
@@ -1082,7 +1083,7 @@ class TestTaskCommands:
         assert result.exit_code == 0
         assert "Practice coding" in result.stdout
 
-    def test_tasks_show(self, runner, isolated_env):
+    def test_tasks_show(self, runner):
         """Test showing task details."""
         # Add a decision and task
         dec_result = runner.invoke(
@@ -1121,7 +1122,7 @@ class TestTaskCommands:
         assert result.exit_code == 0
         assert "Practice coding" in result.stdout
 
-    def test_tasks_show_invalid_id(self, runner, isolated_env):
+    def test_tasks_show_invalid_id(self, runner):
         """Test showing task with invalid ID fails."""
         result = runner.invoke(
             app,
@@ -1131,7 +1132,7 @@ class TestTaskCommands:
         assert result.exit_code == 1
         assert "not found" in result.stderr
 
-    def test_tasks_complete(self, runner, isolated_env):
+    def test_tasks_complete(self, runner):
         """Test marking task as complete."""
         # Add a decision and task
         dec_result = runner.invoke(
@@ -1170,7 +1171,7 @@ class TestTaskCommands:
         assert result.exit_code == 0
         assert "Completed task" in result.stdout
 
-    def test_tasks_complete_invalid_id(self, runner, isolated_env):
+    def test_tasks_complete_invalid_id(self, runner):
         """Test completing task with invalid ID fails."""
         result = runner.invoke(
             app,
@@ -1180,7 +1181,7 @@ class TestTaskCommands:
         assert result.exit_code == 1
         assert "not found" in result.stderr
 
-    def test_tasks_delete(self, runner, isolated_env):
+    def test_tasks_delete(self, runner):
         """Test soft deleting a task."""
         # Add a decision and task
         dec_result = runner.invoke(
@@ -1219,7 +1220,7 @@ class TestTaskCommands:
         assert result.exit_code == 0
         assert "Deleted task" in result.stdout
 
-    def test_tasks_delete_invalid_id(self, runner, isolated_env):
+    def test_tasks_delete_invalid_id(self, runner):
         """Test deleting task with invalid ID fails."""
         result = runner.invoke(
             app,
@@ -1229,7 +1230,7 @@ class TestTaskCommands:
         assert result.exit_code == 1
         assert "not found" in result.stderr
 
-    def test_tasks_update_title(self, runner, isolated_env):
+    def test_tasks_update_title(self, runner):
         """Test updating task title."""
         # Add a decision and task
         dec_result = runner.invoke(
@@ -1268,7 +1269,7 @@ class TestTaskCommands:
         assert result.exit_code == 0
         assert "Updated task" in result.stdout
 
-    def test_tasks_update_status(self, runner, isolated_env):
+    def test_tasks_update_status(self, runner):
         """Test updating task status."""
         # Add a decision and task
         dec_result = runner.invoke(
@@ -1307,7 +1308,7 @@ class TestTaskCommands:
         assert result.exit_code == 0
         assert "Updated task" in result.stdout
 
-    def test_tasks_update_due_date(self, runner, isolated_env):
+    def test_tasks_update_due_date(self, runner):
         """Test updating task due date."""
         # Add a decision and task
         dec_result = runner.invoke(
@@ -1346,7 +1347,7 @@ class TestTaskCommands:
         assert result.exit_code == 0
         assert "Updated task" in result.stdout
 
-    def test_tasks_update_notes(self, runner, isolated_env):
+    def test_tasks_update_notes(self, runner):
         """Test updating task notes."""
         # Add a decision and task
         dec_result = runner.invoke(
@@ -1391,7 +1392,7 @@ class TestTaskCommands:
         assert result.exit_code == 0
         assert "Updated task" in result.stdout
 
-    def test_tasks_update_with_json(self, runner, isolated_env):
+    def test_tasks_update_with_json(self, runner):
         """Test updating task with JSON payload."""
         # Add a decision and task
         dec_result = runner.invoke(
@@ -1436,7 +1437,7 @@ class TestTaskCommands:
         assert result.exit_code == 0
         assert "Updated task" in result.stdout
 
-    def test_tasks_update_invalid_id(self, runner, isolated_env):
+    def test_tasks_update_invalid_id(self, runner):
         """Test updating task with invalid ID fails."""
         result = runner.invoke(
             app,
@@ -1450,7 +1451,7 @@ class TestTaskCommands:
 class TestJourneyCommands:
     """Tests for journey commands."""
 
-    def test_journey_show_with_logs(self, runner, isolated_env):
+    def test_journey_show_with_logs(self, runner):
         """Test showing journey with logs - should show decision details and timeline."""
         # Add a decision
         dec_result = runner.invoke(
@@ -1500,7 +1501,7 @@ class TestJourneyCommands:
         assert data["logs"][0]["content"] == "First log entry"
         assert data["logs"][1]["content"] == "Second log entry"
 
-    def test_journey_show_no_logs(self, runner, isolated_env):
+    def test_journey_show_no_logs(self, runner):
         """Test showing journey with no logs - should show decision but 'No journey logs yet'."""
         # Add a decision
         dec_result = runner.invoke(
@@ -1526,7 +1527,7 @@ class TestJourneyCommands:
         assert data["decision"]["title"] == "Decision Without Logs"
         assert len(data["logs"]) == 0
 
-    def test_journey_show_nonexistent(self, runner, isolated_env):
+    def test_journey_show_nonexistent(self, runner):
         """Test showing journey for non-existent decision - should fail with 'not found'."""
         result = runner.invoke(
             app,
@@ -1536,7 +1537,7 @@ class TestJourneyCommands:
         assert result.exit_code == 1
         assert "not found" in result.stderr
 
-    def test_journey_show_json_format(self, runner, isolated_env):
+    def test_journey_show_json_format(self, runner):
         """Test JSON output format - should return valid JSON with decision and logs."""
         # Add a decision
         dec_result = runner.invoke(
@@ -1578,7 +1579,7 @@ class TestJourneyCommands:
         assert len(data["logs"]) == 1
         assert data["logs"][0]["content"] == "Test log content"
 
-    def test_journey_show_quiet_format(self, runner, isolated_env):
+    def test_journey_show_quiet_format(self, runner):
         """Test quiet output format - should return just the decision ID."""
         # Add a decision
         dec_result = runner.invoke(
@@ -1613,7 +1614,7 @@ class TestJourneyCommands:
 class TestLogCommands:
     """Tests for decision log commands."""
 
-    def test_logs_add(self, runner, isolated_env):
+    def test_logs_add(self, runner):
         """Test adding a log entry to a decision."""
         # Add a decision first
         dec_result = runner.invoke(
@@ -1641,7 +1642,7 @@ class TestLogCommands:
         assert result.exit_code == 0
         assert "Created log entry:" in result.stdout
 
-    def test_logs_add_with_source(self, runner, isolated_env):
+    def test_logs_add_with_source(self, runner):
         """Test adding a log entry with custom source."""
         # Add a decision first
         dec_result = runner.invoke(
@@ -1669,7 +1670,7 @@ class TestLogCommands:
         assert result.exit_code == 0
         assert "Created log entry:" in result.stdout
 
-    def test_logs_add_reflection_type(self, runner, isolated_env):
+    def test_logs_add_reflection_type(self, runner):
         """Test adding a log entry with reflection type."""
         # Add a decision first
         dec_result = runner.invoke(
@@ -1697,7 +1698,7 @@ class TestLogCommands:
         assert result.exit_code == 0
         assert "Created log entry:" in result.stdout
 
-    def test_logs_add_state_change_type(self, runner, isolated_env):
+    def test_logs_add_state_change_type(self, runner):
         """Test adding a log entry with state_change type."""
         # Add a decision first
         dec_result = runner.invoke(
@@ -1725,7 +1726,7 @@ class TestLogCommands:
         assert result.exit_code == 0
         assert "Created log entry:" in result.stdout
 
-    def test_logs_add_invalid_decision(self, runner, isolated_env):
+    def test_logs_add_invalid_decision(self, runner):
         """Test adding log to non-existent decision fails."""
         result = runner.invoke(
             app,
@@ -1740,7 +1741,7 @@ class TestLogCommands:
         assert result.exit_code == 1
         assert "not found" in result.stderr
 
-    def test_logs_add_invalid_type(self, runner, isolated_env):
+    def test_logs_add_invalid_type(self, runner):
         """Test adding log with invalid type fails."""
         # Add a decision first
         dec_result = runner.invoke(
@@ -1768,7 +1769,7 @@ class TestLogCommands:
         assert result.exit_code == 1
         assert "Invalid log type" in result.stderr
 
-    def test_logs_list_empty(self, runner, isolated_env):
+    def test_logs_list_empty(self, runner):
         """Test listing logs when none exist."""
         # Add a decision first
         dec_result = runner.invoke(
@@ -1792,7 +1793,7 @@ class TestLogCommands:
         # In JSON format, empty logs returns []
         assert result.stdout.strip() == "[]"
 
-    def test_logs_list_with_data(self, runner, isolated_env):
+    def test_logs_list_with_data(self, runner):
         """Test listing logs for a decision."""
         # Add a decision first
         dec_result = runner.invoke(
@@ -1827,7 +1828,7 @@ class TestLogCommands:
         assert result.exit_code == 0
         assert "Initial research" in result.stdout
 
-    def test_logs_list_json_format(self, runner, isolated_env):
+    def test_logs_list_json_format(self, runner):
         """Test listing logs with JSON format."""
         # Add a decision first
         dec_result = runner.invoke(
@@ -1862,7 +1863,7 @@ class TestLogCommands:
         assert result.exit_code == 0
         assert "[" in result.stdout or "{" in result.stdout
 
-    def test_logs_list_quiet_format(self, runner, isolated_env):
+    def test_logs_list_quiet_format(self, runner):
         """Test listing logs with quiet format."""
         # Add a decision first
         dec_result = runner.invoke(
@@ -1898,7 +1899,7 @@ class TestLogCommands:
         # Should output just the log ID without extra formatting
         assert result.stdout.strip()
 
-    def test_logs_list_limit(self, runner, isolated_env):
+    def test_logs_list_limit(self, runner):
         """Test listing logs with limit parameter."""
         # Add a decision first
         dec_result = runner.invoke(
@@ -1933,7 +1934,7 @@ class TestLogCommands:
         )
         assert result.exit_code == 0
 
-    def test_logs_list_invalid_decision(self, runner, isolated_env):
+    def test_logs_list_invalid_decision(self, runner):
         """Test listing logs for non-existent decision fails."""
         result = runner.invoke(
             app,
@@ -1943,7 +1944,7 @@ class TestLogCommands:
         assert result.exit_code == 1
         assert "not found" in result.stderr
 
-    def test_logs_delete(self, runner, isolated_env):
+    def test_logs_delete(self, runner):
         """Test deleting a log entry with --force."""
         # Add a decision first
         dec_result = runner.invoke(
@@ -1983,7 +1984,7 @@ class TestLogCommands:
         assert result.exit_code == 0
         assert "Deleted log" in result.stdout
 
-    def test_logs_delete_invalid_id(self, runner, isolated_env):
+    def test_logs_delete_invalid_id(self, runner):
         """Test deleting log with invalid ID fails."""
         result = runner.invoke(
             app,
@@ -1993,7 +1994,7 @@ class TestLogCommands:
         assert result.exit_code == 1
         assert "not found" in result.stderr
 
-    def test_logs_delete_confirmation_cancelled(self, runner, isolated_env):
+    def test_logs_delete_confirmation_cancelled(self, runner):
         """Test deleting log with cancelled confirmation."""
         # Add a decision first
         dec_result = runner.invoke(
@@ -2037,7 +2038,7 @@ class TestLogCommands:
 class TestMemoCommands:
     """Tests for memo management commands."""
 
-    def test_memos_add(self, runner, isolated_env):
+    def test_memos_add(self, runner):
         """Test adding a new memo with content."""
         result = runner.invoke(
             app,
@@ -2047,7 +2048,7 @@ class TestMemoCommands:
         assert result.exit_code == 0
         assert "Created memo:" in result.stdout
 
-    def test_memos_add_with_date(self, runner, isolated_env):
+    def test_memos_add_with_date(self, runner):
         """Test adding a memo with a specific date."""
         result = runner.invoke(
             app,
@@ -2062,7 +2063,7 @@ class TestMemoCommands:
         assert result.exit_code == 0
         assert "Created memo:" in result.stdout
 
-    def test_memos_add_with_decision(self, runner, isolated_env):
+    def test_memos_add_with_decision(self, runner):
         """Test adding a memo linked to a decision."""
         # First create a decision
         dec_result = runner.invoke(
@@ -2090,7 +2091,7 @@ class TestMemoCommands:
         assert result.exit_code == 0
         assert "Created memo:" in result.stdout
 
-    def test_memos_add_with_direction(self, runner, isolated_env):
+    def test_memos_add_with_direction(self, runner):
         """Test adding a memo linked to a direction."""
         # First create a direction
         dir_result = runner.invoke(
@@ -2118,7 +2119,7 @@ class TestMemoCommands:
         assert result.exit_code == 0
         assert "Created memo:" in result.stdout
 
-    def test_memos_add_with_json(self, runner, isolated_env):
+    def test_memos_add_with_json(self, runner):
         """Test adding a memo with JSON payload."""
         result = runner.invoke(
             app,
@@ -2133,7 +2134,7 @@ class TestMemoCommands:
         assert result.exit_code == 0
         assert "Created memo:" in result.stdout
 
-    def test_memos_list_empty(self, runner, isolated_env):
+    def test_memos_list_empty(self, runner):
         """Test listing memos when none exist."""
         result = runner.invoke(
             app,
@@ -2144,7 +2145,7 @@ class TestMemoCommands:
         # Should show empty list or "No memos found" message
         assert "No memos found" in result.stdout or "[]" in result.stdout
 
-    def test_memos_list_with_data(self, runner, isolated_env):
+    def test_memos_list_with_data(self, runner):
         """Test listing memos with data."""
         # Add a memo first
         runner.invoke(
@@ -2162,7 +2163,7 @@ class TestMemoCommands:
         assert result.exit_code == 0
         assert "Test memo" in result.stdout
 
-    def test_memos_list_with_date_filter(self, runner, isolated_env):
+    def test_memos_list_with_date_filter(self, runner):
         """Test listing memos with date filter."""
         # Add a memo with specific date
         runner.invoke(
@@ -2185,7 +2186,7 @@ class TestMemoCommands:
         assert result.exit_code == 0
         assert "Dated memo" in result.stdout
 
-    def test_memos_list_json_format(self, runner, isolated_env):
+    def test_memos_list_json_format(self, runner):
         """Test listing memos with JSON format."""
         # Add a memo first
         runner.invoke(
@@ -2203,7 +2204,7 @@ class TestMemoCommands:
         assert result.exit_code == 0
         assert '"content"' in result.stdout or "[" in result.stdout
 
-    def test_memos_list_quiet_format(self, runner, isolated_env):
+    def test_memos_list_quiet_format(self, runner):
         """Test listing memos with quiet format."""
         # Add a memo first
         runner.invoke(
@@ -2222,7 +2223,7 @@ class TestMemoCommands:
         # Should output just IDs without extra formatting
         assert result.stdout.strip()
 
-    def test_memos_show(self, runner, isolated_env):
+    def test_memos_show(self, runner):
         """Test showing memo details."""
         # Add a memo first
         add_result = runner.invoke(
@@ -2246,7 +2247,7 @@ class TestMemoCommands:
         assert result.exit_code == 0
         assert "Show test memo" in result.stdout
 
-    def test_memos_show_invalid_id(self, runner, isolated_env):
+    def test_memos_show_invalid_id(self, runner):
         """Test showing memo with invalid ID fails."""
         result = runner.invoke(
             app,
@@ -2256,7 +2257,7 @@ class TestMemoCommands:
         assert result.exit_code == 1
         assert "not found" in result.stderr
 
-    def test_memos_update_content(self, runner, isolated_env):
+    def test_memos_update_content(self, runner):
         """Test updating memo content."""
         # Add a memo first
         add_result = runner.invoke(
@@ -2280,7 +2281,7 @@ class TestMemoCommands:
         assert result.exit_code == 0
         assert "Updated memo" in result.stdout
 
-    def test_memos_update_decision(self, runner, isolated_env):
+    def test_memos_update_decision(self, runner):
         """Test updating memo decision link."""
         # Add a memo first
         add_result = runner.invoke(
@@ -2321,7 +2322,7 @@ class TestMemoCommands:
         assert result.exit_code == 0
         assert "Updated memo" in result.stdout
 
-    def test_memos_update_direction(self, runner, isolated_env):
+    def test_memos_update_direction(self, runner):
         """Test updating memo direction link."""
         # Add a memo first
         add_result = runner.invoke(
@@ -2362,7 +2363,7 @@ class TestMemoCommands:
         assert result.exit_code == 0
         assert "Updated memo" in result.stdout
 
-    def test_memos_update_with_json(self, runner, isolated_env):
+    def test_memos_update_with_json(self, runner):
         """Test updating memo with JSON payload."""
         # Add a memo first
         add_result = runner.invoke(
@@ -2385,7 +2386,7 @@ class TestMemoCommands:
         assert result.exit_code == 0
         assert "Updated memo" in result.stdout
 
-    def test_memos_update_invalid_id(self, runner, isolated_env):
+    def test_memos_update_invalid_id(self, runner):
         """Test updating memo with invalid ID fails."""
         result = runner.invoke(
             app,
@@ -2395,7 +2396,7 @@ class TestMemoCommands:
         assert result.exit_code == 1
         assert "not found" in result.stderr
 
-    def test_memos_delete_with_force(self, runner, isolated_env):
+    def test_memos_delete_with_force(self, runner):
         """Test soft deleting a memo with --force flag."""
         # Add a memo first
         add_result = runner.invoke(
@@ -2419,7 +2420,7 @@ class TestMemoCommands:
         assert result.exit_code == 0
         assert "Deleted memo" in result.stdout
 
-    def test_memos_delete_confirmation_cancelled(self, runner, isolated_env):
+    def test_memos_delete_confirmation_cancelled(self, runner):
         """Test deleting memo with cancelled confirmation."""
         # Add a memo first
         add_result = runner.invoke(
@@ -2444,7 +2445,7 @@ class TestMemoCommands:
         assert result.exit_code == 0
         assert "Cancelled" in result.stdout
 
-    def test_memos_delete_invalid_id(self, runner, isolated_env):
+    def test_memos_delete_invalid_id(self, runner):
         """Test deleting memo with invalid ID fails."""
         result = runner.invoke(
             app,
@@ -2458,7 +2459,7 @@ class TestMemoCommands:
 class TestErrorCases:
     """Tests for error cases and edge conditions."""
 
-    def test_missing_required_argument(self, runner, isolated_env):
+    def test_missing_required_argument(self, runner):
         """Test missing required argument shows proper error."""
         # Try to add direction without title
         result = runner.invoke(
@@ -2469,7 +2470,7 @@ class TestErrorCases:
         # Should fail with usage error
         assert result.exit_code != 0
 
-    def test_invalid_command(self, runner, isolated_env):
+    def test_invalid_command(self, runner):
         """Test invalid command shows proper error."""
         result = runner.invoke(
             app,
@@ -2478,7 +2479,7 @@ class TestErrorCases:
         )
         assert result.exit_code != 0
 
-    def test_delete_confirmation_cancelled(self, runner, isolated_env):
+    def test_delete_confirmation_cancelled(self, runner):
         """Test delete confirmation when cancelled."""
         # Add a direction
         add_result = runner.invoke(

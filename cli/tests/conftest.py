@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from deciduum.database import reset_db_manager
+from deciduum.database import reset_db_manager, reset_registry_manager
 
 
 def reset_all_state(
@@ -44,6 +44,7 @@ def reset_all_state(
 
     # Reset global database manager
     reset_db_manager()
+    reset_registry_manager()
 
 
 @pytest.fixture
@@ -79,6 +80,7 @@ def isolated_env(monkeypatch, tmp_path):
     # Set environment variables for isolated test environment
     monkeypatch.setenv("DECIDUUM_SESSION", unique_session_id)
     monkeypatch.setenv("DECIDUUM_SESSIONS_DIR", str(temp_sessions))
+    monkeypatch.setenv("DECIDUUM_DATA_DIR", str(temp_dir))
 
     # Import the config module and store original functions for cleanup
     import deciduum.config as config_module
