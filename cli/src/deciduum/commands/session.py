@@ -134,3 +134,10 @@ def session_path(
     target_session = session_id or get_session_id()
     db_path = get_session_db_path(target_session)
     typer.echo(db_path)
+
+
+@session_app.command("current")
+def session_current():
+    """Show the current session ID."""
+    current = get_session_id()
+    typer.echo(current)
