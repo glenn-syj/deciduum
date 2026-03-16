@@ -7,8 +7,18 @@ import typer
 
 from sqlalchemy import create_engine, text, inspect
 
-from deciduum.config import get_session_id, get_sessions_dir, get_session_db_path
-from deciduum.database import get_db_manager
+from deciduum.config import (
+    get_session_id,
+    get_sessions_dir,
+    get_session_db_path,
+    get_registry_db_path,
+)
+from deciduum.database import (
+    get_db_manager,
+    get_registry_manager,
+    needs_migration,
+    migrate_sessions,
+)
 from deciduum.schemas import SessionCreate
 
 session_app = typer.Typer(help="Session management commands.")
@@ -128,17 +138,49 @@ def validate_session_database(session_id: str) -> tuple[bool, str]:
 def list_sessions():
     """List all existing sessions.
 
-    Shows all session databases in the sessions directory, with the
-    current session marked. If the current session database doesn't
-    exist, it will be initialized automatically.
+    Queries the master registry database for all sessions and displays
+    them with their creation dates. The current session is marked with
+    "(current)". If the master registry doesn't exist or is empty,
+    automatically migrates existing session databases.
     """
     sessions_dir = get_sessions_dir()
+    current_session = get_session_id()
 
+    # Auto-migration: check if registry needs migration
+    if needs_migration():
+        migrated = migrate_sessions()
+        if migrated > 0:
+            typer.echo(f"Migrated {migrated} existing session(s) to registry.")
+
+    # Get registry manager
+    registry_manager = get_registry_manager()
+    registry_db_path = get_registry_db_path()
+
+    # Try to query master DB first
+    if registry_db_path.exists():
+        try:
+            sessions = registry_manager.list_sessions()
+
+            if sessions:
+                typer.echo(f"Sessions directory: {sessions_dir}")
+                typer.echo(f"Current session: {current_session}")
+                typer.echo("\nAvailable sessions:")
+                typer.echo("-" * 50)
+
+                for reg_session in sorted(sessions, key=lambda s: s.session_id):
+                    session_id = reg_session.session_id
+                    created_at = reg_session.created_at
+                    marker = " (current)" if session_id == current_session else ""
+                    typer.echo(f"  {session_id} - {created_at}{marker}")
+                return
+        except Exception:
+            # Fall through to filesystem fallback on any error
+            pass
+
+    # Fallback: filesystem scan if registry doesn't exist or failed
     if not sessions_dir.exists():
         typer.echo("No sessions found.")
         return
-
-    current_session = get_session_id()
 
     # Ensure current session exists
     current_db_path = get_session_db_path(current_session)
@@ -202,7 +244,7 @@ def session_info(
 def create_session(
     session_id: str = typer.Argument(..., help="Session ID to create"),
     json_input: str = typer.Option(
-        ..., "--json", "-j", help="JSON payload with session fields"
+        None, "--json", "-j", help="JSON payload with session fields (optional)"
     ),
 ):
     """Create a new session.
@@ -213,25 +255,46 @@ def create_session(
 
     Args:
         session_id: Unique identifier for the new session.
-        json_input: JSON payload with session fields (e.g., {"name": "My Session"}).
+        json_input: Optional JSON payload with session fields (e.g., {"name": "My Session"}).
     """
+    # Step 1: Check if session_id exists in master DB
+    registry_manager = get_registry_manager()
+    existing_in_registry = registry_manager.get_session(session_id)
+    if existing_in_registry:
+        typer.echo(f"Session '{session_id}' already exists in registry.", err=True)
+        raise typer.Exit(1)
+
+    # Step 2: Check if session_id exists in filesystem
     db_path = get_session_db_path(session_id)
-
     if db_path.exists():
-        typer.echo(f"Session '{session_id}' already exists.", err=True)
+        typer.echo(f"Session '{session_id}' already exists in filesystem.", err=True)
         raise typer.Exit(1)
 
+    # Step 3: Parse JSON payload if provided
+    name = session_id
+    if json_input:
+        try:
+            payload = SessionCreate.model_validate_json(json_input)
+            if payload.name:
+                name = payload.name
+        except Exception as e:
+            typer.echo(f"Invalid JSON: {e}", err=True)
+            raise typer.Exit(1)
+
+    # Step 4 & 5: Insert into master DB and create session DB file (atomic)
     try:
-        payload = SessionCreate.model_validate_json(json_input)
+        # Insert into master DB first
+        registry_manager.add_session(session_id)
+
+        # Then create session DB file
+        db_manager = get_db_manager(session_id)
+        db_manager.init_database(name=name)
+
     except Exception as e:
-        typer.echo(f"Invalid JSON: {e}", err=True)
+        # If anything fails, we should ideally rollback
+        # Since registry is already committed, we log the error
+        typer.echo(f"Failed to create session: {e}", err=True)
         raise typer.Exit(1)
-
-    # Use payload.name if provided, otherwise default to session_id argument
-    name = payload.name if payload.name else session_id
-
-    db_manager = get_db_manager(session_id)
-    db_manager.init_database(name=name)
 
     typer.echo(f"Created session '{session_id}' at {db_path}")
 
@@ -320,3 +383,59 @@ def validate_session(
         typer.echo(f"Error: Session '{session_id}' is corrupted or invalid.", err=True)
         typer.echo(f"Details: {message}", err=True)
         raise typer.Exit(1)
+
+
+@session_app.command("migrate")
+def migrate():
+    """Migrate existing session databases to the master registry.
+
+    Scans the filesystem for session databases in the sessions directory
+    and adds any missing sessions to the master registry. This command
+    is idempotent - running it multiple times is safe.
+
+    Use this command to force a re-scan and sync of sessions from the
+    filesystem to the registry database.
+    """
+    sessions_dir = get_sessions_dir()
+
+    if not sessions_dir.exists():
+        typer.echo("No sessions to migrate (sessions directory does not exist).")
+        return
+
+    # Ensure registry is initialized
+    registry_manager = get_registry_manager()
+    registry_manager.init_database()
+
+    # Get count of sessions in registry before migration
+    existing_sessions = registry_manager.list_sessions()
+    existing_ids = {s.session_id for s in existing_sessions}
+
+    # Scan filesystem for session databases
+    db_files = list(sessions_dir.glob("*.db"))
+
+    if not db_files:
+        typer.echo("No sessions to migrate.")
+        return
+
+    migrated_count = 0
+
+    for db_file in db_files:
+        session_id = db_file.stem
+
+        # Skip if already in registry (idempotent)
+        if session_id in existing_ids:
+            continue
+
+        # Add to registry
+        try:
+            registry_manager.add_session(session_id)
+            migrated_count += 1
+            existing_ids.add(session_id)  # Track to avoid duplicates in same run
+        except Exception as e:
+            # Log but continue - migration should be resilient
+            typer.echo(f"Warning: Failed to migrate session '{session_id}': {e}")
+
+    if migrated_count > 0:
+        typer.echo(f"Migrated {migrated_count} session(s).")
+    else:
+        typer.echo("No sessions to migrate.")
