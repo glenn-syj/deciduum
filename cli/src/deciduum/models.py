@@ -24,6 +24,17 @@ class Base(DeclarativeBase):
     pass
 
 
+class RegistrySession(Base):
+    """Registry session table - master registry of all sessions."""
+
+    __tablename__ = "registry_sessions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    session_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    created_at: Mapped[str] = mapped_column(String(36), default=utcnow_string)
+    updated_at: Mapped[str] = mapped_column(String(36), default=utcnow_string)
+
+
 class SessionInfo(Base):
     """Session metadata table."""
 

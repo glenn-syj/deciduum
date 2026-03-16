@@ -52,6 +52,30 @@ def get_data_dir() -> Path:
         return Path(xdg_data) / "deciduum" / "sessions"
 
 
+def get_registry_data_dir() -> Path:
+    """Get registry data directory (parent of sessions directory)."""
+    # Check for environment variable override first
+    if os.environ.get("DECIDUUM_DATA_DIR"):
+        return Path(os.environ["DECIDUUM_DATA_DIR"])
+
+    system = platform.system()
+
+    if system == "Windows":
+        base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
+        return base / "deciduum"
+    elif system == "Darwin":
+        return Path.home() / "Library" / "Application Support" / "deciduum"
+    else:
+        xdg_data = os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")
+        return Path(xdg_data) / "deciduum"
+
+
+def get_registry_db_path() -> Path:
+    """Get the registry database path."""
+    registry_dir = get_registry_data_dir()
+    return registry_dir / "sessions.db"
+
+
 def get_config_file() -> Path:
     """Get the config file path."""
     return get_config_dir() / "config.json"
