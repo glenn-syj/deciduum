@@ -6,7 +6,7 @@ from typing import Optional
 import typer
 
 from deciduum.config import get_session_id, get_sessions_dir, get_session_db_path
-from deciduum.database import get_db_manager
+from deciduum.database import get_db_manager, get_registry_manager
 from deciduum.commands.session import session_app
 from deciduum.commands.config import config_app
 from deciduum.commands.today import today_command
@@ -69,6 +69,10 @@ def main(
     ),
 ):
     """Deciduum CLI - Decision tracking application."""
+    # Initialize registry database on first CLI run
+    registry_manager = get_registry_manager()
+    registry_manager.init_database()
+
     # Handle session option
     if session:
         os.environ["DECIDUUM_SESSION"] = session
